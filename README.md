@@ -13,7 +13,7 @@ To launch the ssh gatway
     ssh personal_user@target_user@target_address@bastion_address
 
     Example: 
-    ssh gadda@gil@176.34.154.225:2025@localhost -p 2222
+    ssh gadda@gil@176.34.154.225:2025@localhost -p 2223
 
 
 
