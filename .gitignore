@@ -4,6 +4,13 @@
 *.dll
 *.so
 *.dylib
+logs
+.DS_Store
+.vscode/
+config.code-workspace
+ssh-gateway
+ssh_host_rsa_key
+config.json
 
 # Test binary, built with `go test -c`
 *.test
