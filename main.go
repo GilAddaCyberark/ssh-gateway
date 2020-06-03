@@ -8,56 +8,77 @@ import (
 	"os"
 )
 
-var configFilename *string
-
 type ConfigGlobal struct {
 	Server ServerConfig
 	Dialer DialerConfig
-	Relay  RelayConfig
+	// Relay  RelayInfo
 }
 
 var globalConfig *ConfigGlobal
 var bastionConfig *ServerConfig
 var dialerConfig *DialerConfig
-var relayConfig *RelayConfig
+
+// var RelayInfo *relayInfo
+
+const (
+	defaultConfigurtionFile = "config.json"
+	defaultEnableRecording  = false
+	defaultListentingPort   = 2222
+	defaultRecordingDir     = "recordings"
+)
+
+var configFilePath *string
+var listeningPort *int
+var enableRecording *bool
+var recordingDir *string
 
 func init() {
-	// Set Flags
-	configFilename = flag.String("config", "", "Configuration file in json")
-	flag.Usage = printUsage
+	// Init Flags
+	setCommandLineArgs()
+
 }
 func main() {
+	// Handle Command Line Args
+
 	flag.Parse()
+
+	printRuntimeArgs()
+
+	// Load Configuration
+	setConfig()
+
+	// Set new SSH Server to listen to new incoming connections
+	s := SSHGateway{}
+	s.listeningPort = *listeningPort
+	s.TargetInfo = &TargetInfo{}
+	s.RelayInfo = &RelayInfo{}
+	s.RelayInfo.EnableRecording = *enableRecording
+	s.RelayInfo.RecordingsDir = *recordingDir
+
+	if s.NewSSHGateway() != nil {
+		panic("SSH Gatweay could not start")
+	}
+	s.ListenAndServe()
+}
+func setConfig() {
 	// load configuration
 	config, err := loadConfig()
 	bastionConfig = &config.Server
 	dialerConfig = &config.Dialer
-	relayConfig = &config.Relay
+	// relayConfig = &config.Relay
 	if err != nil {
 		panic(err)
 	}
-
-	// Set new SSH Server to listen to new incoming connections
-	s := SSHGateway{}
-	if s.NewSSHGateway() != nil {
-		panic(err)
-	}
-	s.ListenAndServe(bastionConfig.ServerAddress)
-}
-
-func printUsage() {
-	fmt.Printf("Usage: yourtool [options] param>\n\n")
-	flag.PrintDefaults()
 }
 
 func loadConfig() (*ConfigGlobal, error) {
 	// Print File
-	fmt.Println(*configFilename)
+	fmt.Println(configFilePath)
 
 	// todo: Check if files exists
-	if fileExists(*configFilename) {
+	if fileExists(*configFilePath) {
 		// Read File
-		configData, err := ioutil.ReadFile(*configFilename)
+		configData, err := ioutil.ReadFile(*configFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to open config file: %s", err)
 		}
@@ -70,9 +91,9 @@ func loadConfig() (*ConfigGlobal, error) {
 		return config, nil
 
 	} else {
-		return nil, fmt.Errorf("Unexpected error with json config file: %s", *configFilename)
+		return nil, fmt.Errorf("Unexpected error with json config file: %s", configFilePath)
 	}
-	return nil, fmt.Errorf("Unexpected error with json config file: %s", *configFilename)
+	return nil, fmt.Errorf("Unexpected error with json config file: %s", configFilePath)
 }
 
 func fileExists(filename string) bool {
@@ -81,4 +102,33 @@ func fileExists(filename string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+// *********************************
+// Command Line Stuff
+// *********************************
+func printRuntimeArgs() {
+	fmt.Println("SSH Gateway Running")
+	fmt.Printf("Configuration File: %s\n", *configFilePath)
+	fmt.Printf("SSH Gateway Listening Port: %d\n", *listeningPort)
+	fmt.Printf("Session Recording Enabled: %s\n", *enableRecording)
+	fmt.Printf("Session Recording Dir: %s\n", *recordingDir)
+}
+
+func setCommandLineArgs() {
+	// Command Line variabls
+	const (
+		logo = "EVEREST SSH BASTION Usage:\n" +
+			"---------------------------\n"
+	)
+
+	configFilePath = flag.String("cfg", defaultConfigurtionFile, "The path of the ssh-gateway configuration file")
+	listeningPort = flag.Int("port", defaultListentingPort, "The port that the ssh gateway is listening to client connections")
+	recordingDir = flag.String("rec-path", defaultRecordingDir, "The path of the session recording dir")
+	enableRecording = flag.Bool("rec", defaultEnableRecording, "To enable the recording of the client sessions. The value is true / false")
+	flag.Usage = func() {
+		fmt.Printf(logo)
+		fmt.Printf("Usage: ssh-gateway [options] param>\n\n")
+		flag.PrintDefaults()
+	}
 }

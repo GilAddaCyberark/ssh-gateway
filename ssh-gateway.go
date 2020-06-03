@@ -25,10 +25,12 @@ type ServerConfig struct {
 }
 
 type SSHGateway struct {
-	SshConfig    *ssh.ServerConfig
-	PersonalUser string
-	PersonalPass []byte
-	TargetInfo   *TargetInfo
+	SshConfig     *ssh.ServerConfig
+	PersonalUser  string
+	PersonalPass  []byte
+	TargetInfo    *TargetInfo
+	RelayInfo     *RelayInfo
+	listeningPort int
 }
 
 // Create the configuration of a new server and start it
@@ -100,7 +102,9 @@ func (s *SSHGateway) ParsePSMSyntaxUser(user string) error {
 	return nil
 }
 
-func (s *SSHGateway) ListenAndServe(addr string) error {
+func (s *SSHGateway) ListenAndServe() error {
+
+	addr := fmt.Sprintf("0.0.0.0:%d", s.listeningPort)
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -136,7 +140,7 @@ func (s *SSHGateway) HandleConn(c net.Conn) {
 
 	switch srvChannel.ChannelType() {
 	case "session":
-		relay, err := NewRelay(s.TargetInfo)
+		relay, err := NewRelay(s.TargetInfo, s.RelayInfo)
 		if err != nil {
 			return
 		}

@@ -11,20 +11,23 @@ import (
 )
 
 type RelayChannel struct {
-	StartTime     time.Time
-	UserName      string
-	SourceChannel ssh.Channel
-	fd            *os.File
-	initialBuffer *bytes.Buffer
-	logMutex      *sync.Mutex
+	StartTime       time.Time
+	UserName        string
+	SourceChannel   ssh.Channel
+	fd              *os.File
+	initialBuffer   *bytes.Buffer
+	logMutex        *sync.Mutex
+	enableRecording bool
 }
 
-
-
-func (l *RelayChannel) SyncToFile(remote_name string) error {
+func (l *RelayChannel) SyncToFile(remote_name string, recordingDir string) error {
 	var err error
 
-	filepath := fmt.Sprintf("%s/%d/%d", relayConfig.LogsDir, l.StartTime.Year(), l.StartTime.Month())
+	if !l.enableRecording {
+		return nil
+	}
+
+	filepath := fmt.Sprintf("%s/%d/%d", recordingDir, l.StartTime.Year(), l.StartTime.Month())
 	err = os.MkdirAll(filepath, 0750)
 	if err != nil {
 		return fmt.Errorf("Unable to create required log directory (%s): %s", filepath, err)
@@ -54,7 +57,7 @@ func (l *RelayChannel) Read(data []byte) (int, error) {
 func (l *RelayChannel) Write(data []byte) (int, error) {
 	l.logMutex.Lock()
 	if len(data) > 0 {
-		if l.fd != nil {
+		if l.fd != nil && l.enableRecording {
 			l.fd.Write(data)
 		} else {
 			l.initialBuffer.Write(data)
@@ -63,9 +66,14 @@ func (l *RelayChannel) Write(data []byte) (int, error) {
 	l.logMutex.Unlock()
 
 	return l.SourceChannel.Write(data)
+
 }
 
 func (l *RelayChannel) Close() error {
+	if !l.enableRecording {
+		return nil
+	}
+
 	if l.fd != nil {
 		l.fd.Close()
 	}

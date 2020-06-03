@@ -14,6 +14,3 @@ To launch the ssh gatway
 
     Example: 
     ssh gadda@gil@176.34.154.225:2025@localhost -p 2222
-
-
-

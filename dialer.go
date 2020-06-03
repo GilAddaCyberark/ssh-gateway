@@ -47,6 +47,10 @@ func GetSSHUserPassConfig() *ssh.ClientConfig {
 	return sshUserPassConfig
 }
 
+func GetJITSSHConfig() {
+	//todo : implememt jit certificate ssh dialer ...dima the king
+}
+
 func (d *SSHDialer) connectToTarget(remoteAddr string, relayChannel *RelayChannel) (*ssh.Client, error) {
 	// WriteAuthLog("Connecting to remote for relay (%s) by %s from %s.", remote.ConnectPath, sshConn.User(), sshConn.RemoteAddr())
 	fmt.Fprintf(relayChannel, "Connecting to %s\r\n", remoteAddr)

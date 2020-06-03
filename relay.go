@@ -10,17 +10,20 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-type RelayConfig struct {
-	LogsDir string
+type RelayInfo struct {
+	RecordingsDir   string
+	EnableRecording bool
 }
 
 type SSHRelay struct {
 	RelayTargetInfo *TargetInfo
+	RelayInfo       *RelayInfo
 }
 
-func NewRelay(TargetInfo *TargetInfo) (SSHRelay, error) {
+func NewRelay(TargetInfo *TargetInfo, RelayInfo *RelayInfo) (SSHRelay, error) {
 	relay := SSHRelay{}
 	relay.RelayTargetInfo = TargetInfo
+	relay.RelayInfo = RelayInfo
 	return relay, nil
 }
 
@@ -94,7 +97,7 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	// Set the window header to SSH Relay login.
 	fmt.Fprintf(relayChannel, "%s]0;SSH Bastion Relay Login%s", []byte{27}, []byte{7})
 
-	err = relayChannel.SyncToFile(dialerConfig.DefaultTargetAddress)
+	err = relayChannel.SyncToFile(dialerConfig.DefaultTargetAddress, r.RelayInfo.RecordingsDir)
 	if err != nil {
 		fmt.Fprintf(relayChannel, "Failed to Initialize Session.\r\n")
 		relayChannel.Close()
