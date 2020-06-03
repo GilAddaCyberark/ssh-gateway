@@ -2,9 +2,8 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
-	"sync"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -33,11 +32,12 @@ func NewDialer(TargetInfo *TargetInfo) (SSHDialer, error) {
 // Dial To target, get target and open session
 
 // get user pass
-func GetSSHUserPassConfig() *ssh.ClientConfig {
+func (d *SSHDialer) GetSSHUserPassConfig() *ssh.ClientConfig {
 	sshUserPassConfig := &ssh.ClientConfig{
-		User: dialerConfig.User,
+		User: d.DialerTargetInfo.TargetUser,
 		// todo : change this implementation to be passed from the idp / secret manage
-		Auth: []ssh.AuthMethod{ssh.Password(dialerConfig.Password)},
+		Auth:    []ssh.AuthMethod{ssh.Password(dialerConfig.Password)},
+		Timeout: 15 * time.Second,
 	}
 	sshUserPassConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
@@ -47,8 +47,55 @@ func GetSSHUserPassConfig() *ssh.ClientConfig {
 	return sshUserPassConfig
 }
 
-func GetJITSSHConfig() {
-	//todo : implememt jit certificate ssh dialer ...dima the king
+func (d *SSHDialer) GetJITSSHClientConfig() {
+	// // Todo : implement ssh.clientconfig - gil
+	// 	// SSH Cert Config
+
+	// 	key, err := ioutil.ReadFile("/Users/gadda/.ssh/id_rsa")
+	// 	if err != nil {
+	// 		log.Fatalf("unable to read private key: %v", err)
+	// 	}
+
+	// 	// Create the Signer for this private key.
+	// 	signer, err := ssh.ParsePrivateKey(key)
+	// 	if err != nil {
+	// 		log.Fatalf("unable to parse private key: %v", err)
+	// 	}
+
+	// 	// Load the certificate
+	// 	cert, err := ioutil.ReadFile("/Users/gadda/.ssh/id_rsa-cert.pub")
+	// 	if err != nil {
+	// 		log.Fatalf("unable to read certificate file: %v", err)
+	// 	}
+
+	// 	pk, _, _, _, err := ssh.ParseAuthorizedKey(cert)
+	// 	if err != nil {
+	// 		log.Fatalf("unable to parse public key: %v", err)
+	// 	}
+
+	// 	certSigner, err := ssh.NewCertSigner(pk.(*ssh.Certificate), signer)
+	// 	if err != nil {
+	// 		log.Fatalf("failed to create cert signer: %v", err)
+	// 	}
+
+	// 	cert_config := &ssh.ClientConfig{
+	// 		User: "ec2-user",
+	// 		Auth: []ssh.AuthMethod{
+	// 			// Use the PublicKeys method for remote authentication.
+	// 			ssh.PublicKeys(certSigner),
+	// 		},
+	// 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	// 	}
+
+	// 	return cert_config
+}
+
+func (d *SSHDialer) GetJitSSHCeretificate(targetId string) {
+	//todo : implememt jit certificate from lambda  ...dima the king
+}
+
+func (d *SSHDialer) GetTargetIDAddress(targetId string) {
+	//todo : implememt jit certificate from lambda  ...dima the king
 }
 
 func (d *SSHDialer) connectToTarget(remoteAddr string, relayChannel *RelayChannel) (*ssh.Client, error) {
@@ -56,74 +103,22 @@ func (d *SSHDialer) connectToTarget(remoteAddr string, relayChannel *RelayChanne
 	fmt.Fprintf(relayChannel, "Connecting to %s\r\n", remoteAddr)
 
 	var clientConfig *ssh.ClientConfig
-	log.Printf("Getting Ready to Dial Remote SSH %s", remoteAddr)
+	log.Printf("Try to connect to target: %s", remoteAddr)
 
 	if dialerConfig.AuthType == "pass" {
-		clientConfig = GetSSHUserPassConfig()
+		clientConfig = d.GetSSHUserPassConfig()
 	} else {
 		log.Fatalf("Wrong Auth Type...")
 	}
-	// // Change port 22 to a range of 2022 - 2036
-	// randomPort := rand.Intn(dialerConfig.MaxPortToRotate-dialerConfig.MinPortToRotate) + dialerConfig.MinPortToRotate
-	// remoteHost := fmt.Sprintf("%s:%d", dialerConfig.DefaultTargetAddress, randomPort)
 	remoteHost := fmt.Sprintf("%s:%d", d.DialerTargetInfo.TargetAddress, d.DialerTargetInfo.TargetPort)
-
 	client, err := ssh.Dial("tcp", remoteHost, clientConfig)
-	fmt.Fprintf(relayChannel, "Connection established to : %v\r\n", remoteHost)
 	if err != nil {
-		fmt.Fprintf(relayChannel, "Connect failed: %v\r\n", err)
-		relayChannel.Close()
+		fmt.Fprintf(relayChannel, "Connection failed to: %v\r\n", err)
 		return nil, err
 	}
 
+	fmt.Fprintf(relayChannel, "Connection established to : %v\r\n", remoteHost)
+
 	log.Printf("Starting session proxy...")
 	return client, err
-}
-
-func proxy(reqs1, reqs2 <-chan *ssh.Request, channel1 *RelayChannel, channel2 ssh.Channel) {
-	var closer sync.Once
-	closeFunc := func() {
-		channel1.Close()
-		channel2.Close()
-	}
-
-	defer closer.Do(closeFunc)
-
-	closerChan := make(chan bool, 1)
-
-	// From remote, to client.
-	go func() {
-		io.Copy(channel1, channel2)
-		closerChan <- true
-	}()
-
-	go func() {
-		io.Copy(channel2, channel1)
-		closerChan <- true
-	}()
-
-	for {
-		select {
-		case req := <-reqs1:
-			if req == nil {
-				return
-			}
-			b, err := channel2.SendRequest(req.Type, req.WantReply, req.Payload)
-			if err != nil {
-				return
-			}
-			req.Reply(b, nil)
-		case req := <-reqs2:
-			if req == nil {
-				return
-			}
-			b, err := channel1.SendRequest(req.Type, req.WantReply, req.Payload)
-			if err != nil {
-				return
-			}
-			req.Reply(b, nil)
-		case <-closerChan:
-			return
-		}
-	}
 }

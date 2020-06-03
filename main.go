@@ -11,21 +11,11 @@ import (
 type ConfigGlobal struct {
 	Server ServerConfig
 	Dialer DialerConfig
-	// Relay  RelayInfo
 }
 
 var globalConfig *ConfigGlobal
-var bastionConfig *ServerConfig
+var serverConfig *ServerConfig
 var dialerConfig *DialerConfig
-
-// var RelayInfo *relayInfo
-
-const (
-	defaultConfigurtionFile = "config.json"
-	defaultEnableRecording  = false
-	defaultListentingPort   = 2222
-	defaultRecordingDir     = "recordings"
-)
 
 var configFilePath *string
 var listeningPort *int
@@ -63,7 +53,7 @@ func main() {
 func setConfig() {
 	// load configuration
 	config, err := loadConfig()
-	bastionConfig = &config.Server
+	serverConfig = &config.Server
 	dialerConfig = &config.Dialer
 	// relayConfig = &config.Relay
 	if err != nil {
@@ -116,6 +106,14 @@ func printRuntimeArgs() {
 }
 
 func setCommandLineArgs() {
+
+	const (
+		defaultConfigurtionFile = "config.json"
+		defaultEnableRecording  = false
+		defaultListentingPort   = 2222
+		defaultRecordingDir     = "recordings"
+	)
+
 	// Command Line variabls
 	const (
 		logo = "EVEREST SSH BASTION Usage:\n" +

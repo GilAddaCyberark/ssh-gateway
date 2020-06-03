@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"log"
 	"sync"
 	"time"
@@ -38,13 +39,14 @@ func (r *SSHRelay) NewRelayChannel(startTime time.Time, channel ssh.Channel, use
 	}
 }
 
-func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, srvNewChannel ssh.NewChannel, chans <-chan ssh.NewChannel) {
+func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, srvNewChannel ssh.NewChannel, chans <-chan ssh.NewChannel) error {
 
 	srvChannel, srvReqs, err := srvNewChannel.Accept()
 	if err != nil {
 		log.Printf("Session is not accepted, abort...")
+		// todo : find more resources needed to close
 		sshConn.Close()
-		return
+		return err
 	}
 	defer sshConn.Close()
 
@@ -101,23 +103,86 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	if err != nil {
 		fmt.Fprintf(relayChannel, "Failed to Initialize Session.\r\n")
 		relayChannel.Close()
-		return
+		return err
 	}
 
 	// Dial To target, get target and open session
 	dialer, err := NewDialer(r.RelayTargetInfo)
 	if err != nil {
 		fmt.Fprintf(relayChannel, "Failed to Initialize Session.\r\n")
-		return
+		return err
 	}
-	client, err := dialer.connectToTarget(dialerConfig.DefaultTargetAddress, relayChannel)
-	defer client.Close()
+	targetURL := fmt.Sprintf("%s:%d", r.RelayTargetInfo.TargetAddress, r.RelayTargetInfo.TargetPort)
+	client, err := dialer.connectToTarget(targetURL, relayChannel)
+	if err != nil {
+		if client != nil {
+			client.Close()
+		} else {
+			log.Printf("Connection failed to target: %s", targetURL)
+		}
+		return err
+
+	} else {
+		defer client.Close()
+
+	}
 	channel2, reqs2, err := client.OpenChannel("session", []byte{})
 	if err != nil {
 		fmt.Fprintf(relayChannel, "Remote session setup failed: %v\r\n", err)
 		relayChannel.Close()
-		return
+		return err
 	}
 	log.Printf("Starting session proxy...")
-	proxy(maskedReqs, reqs2, relayChannel, channel2)
+	r.proxy(maskedReqs, reqs2, relayChannel, channel2)
+
+	return nil
+
+}
+
+func (r *SSHRelay) proxy(reqs1, reqs2 <-chan *ssh.Request, channel1 *RelayChannel, channel2 ssh.Channel) {
+	var closer sync.Once
+	closeFunc := func() {
+		channel1.Close()
+		channel2.Close()
+	}
+
+	defer closer.Do(closeFunc)
+
+	closerChan := make(chan bool, 1)
+
+	// From remote, to client.
+	go func() {
+		io.Copy(channel1, channel2)
+		closerChan <- true
+	}()
+
+	go func() {
+		io.Copy(channel2, channel1)
+		closerChan <- true
+	}()
+
+	for {
+		select {
+		case req := <-reqs1:
+			if req == nil {
+				return
+			}
+			b, err := channel2.SendRequest(req.Type, req.WantReply, req.Payload)
+			if err != nil {
+				return
+			}
+			req.Reply(b, nil)
+		case req := <-reqs2:
+			if req == nil {
+				return
+			}
+			b, err := channel1.SendRequest(req.Type, req.WantReply, req.Payload)
+			if err != nil {
+				return
+			}
+			req.Reply(b, nil)
+		case <-closerChan:
+			return
+		}
+	}
 }
