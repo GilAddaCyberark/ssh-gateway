@@ -132,3 +132,42 @@ func setCommandLineArgs() {
 		flag.PrintDefaults()
 	}
 }
+
+// ***************************************
+// Test code from aws_helpers 
+// ***************************************
+// package main
+
+// import(
+// 	"fmt"
+// 	"aws_lambda/aws_workers"
+// 	"io/ioutil"
+// )
+
+// func main() {
+
+// 	token_id := "jit_cert_for_ec2-user_tenant_instance"
+// 	target_instance_id := "i-0e529014b31505224"
+// 	tenant_id := "ed6b61ed-668d-46cd-8206-3e387f874b5f"
+
+// 	public_ip, err := aws_helpers.GetPuplicIP(target_instance_id)
+// 	if err != nil {
+// 		fmt.Printf("Cannot get PuplicIP: %v\n", err)
+// 		return 
+// 	}
+// 	fmt.Println(public_ip)
+
+// 	// TODO should be or parameter or config value
+// 	public_key, err := ioutil.ReadFile("/Users/dsevostianov/workspace/targets-credentials-service/e2e_output/local_key_pair.pub")
+// 	if err != nil {
+// 		fmt.Printf("Unable to read public key: %v\n", err)
+// 		return 
+// 	}
+	
+// 	certificate, err := aws_helpers.GetTargetCertificate(tenant_id, target_instance_id, token_id, public_key)
+// 	if err != nil {
+// 		fmt.Printf("Cannot get certificate: %v\n", err)
+// 		return 
+// 	}
+// 	fmt.Println(certificate)
+// }
