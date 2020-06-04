@@ -8,11 +8,6 @@ import (
 	"os"
 )
 
-const TENANT_ID = "5ad212cf-62fc-4971-9c71-659b6b27c39c"
-const EXPIRATION_PERIOD int = 360
-const PHYSICAL_LAMBDA_NAME string = "GaddatargetsCredentialsMaster-GetTargetCertificate-1JTZUBPQBX1SY"
-const DEFAULT_REGION string = "eu-west-1"
-
 // todo : move to config class
 
 type ConfigGlobal struct {
@@ -60,12 +55,14 @@ func main() {
 func setConfig() {
 	// load configuration
 	config, err := loadConfig()
+	if err != nil {
+		fmt.Printf("Load Configuration error: %v\n", err)
+		panic(err)
+	}
+
 	serverConfig = &config.Server
 	dialerConfig = &config.Dialer
 	// relayConfig = &config.Relay
-	if err != nil {
-		panic(err)
-	}
 }
 
 func loadConfig() (*ConfigGlobal, error) {
@@ -137,42 +134,3 @@ func setCommandLineArgs() {
 		flag.PrintDefaults()
 	}
 }
-
-// ***************************************
-// Test code from aws_helpers
-// ***************************************
-// package main
-
-// import(
-// 	"fmt"
-// 	"aws_lambda/aws_workers"
-// 	"io/ioutil"
-// )
-
-// func main() {
-
-// 	token_id := "jit_cert_for_ec2-user_tenant_instance"
-// 	target_instance_id := "i-0e529014b31505224"
-// 	tenant_id := "ed6b61ed-668d-46cd-8206-3e387f874b5f"
-
-// 	public_ip, err := aws_helpers.GetPublicIP(target_instance_id)
-// 	if err != nil {
-// 		fmt.Printf("Cannot get PuplicIP: %v\n", err)
-// 		return
-// 	}
-// 	fmt.Println(public_ip)
-
-// 	// TODO should be or parameter or config value
-// 	public_key, err := ioutil.ReadFile("/Users/dsevostianov/workspace/targets-credentials-service/e2e_output/local_key_pair.pub")
-// 	if err != nil {
-// 		fmt.Printf("Unable to read public key: %v\n", err)
-// 		return
-// 	}
-
-// 	certificate, err := aws_helpers.GetTargetCertificate(tenant_id, target_instance_id, token_id, public_key)
-// 	if err != nil {
-// 		fmt.Printf("Cannot get certificate: %v\n", err)
-// 		return
-// 	}
-// 	fmt.Println(certificate)
-// }

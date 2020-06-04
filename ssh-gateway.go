@@ -13,10 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"golang.org/x/crypto/ssh"
+
+	"ssh-gateway/aws_workers"
 )
 
 const SERVER_VERSION = "SSH-2.0-EVEREST-SSH-GW"
@@ -56,7 +55,7 @@ type SSHGateway struct {
 // Create the configuration of a new server and start it
 func (s *SSHGateway) NewSSHGateway() error {
 	context = &ServerContext{}
-	context.TenantId = TENANT_ID
+	context.TenantId = aws_helpers.TENANT_ID
 	serverConfig := &ssh.ServerConfig{
 		NoClientAuth:  false,
 		MaxAuthTries:  1,
@@ -175,7 +174,7 @@ func (s *SSHGateway) HandleConn(c net.Conn) {
 
 	srvConn, chans, reqs, err := ssh.NewServerConn(c, s.SshConfig)
 	if err != nil {
-		log.Printf("Exiting as there is a config problem...")
+		log.Printf("Exiting as there is a config problem...%v\n", err)
 		if srvConn != nil {
 			srvConn.Close()
 		}
@@ -280,7 +279,7 @@ func encodePrivateKeyToPEM(privateKey *rsa.PrivateKey) []byte {
 }
 
 func GetServerSigner() (ssh.Signer, error) {
-	key, err := ioutil.ReadFile("/Users/gadda/.ssh/id_rsa")
+	key, err := ioutil.ReadFile(aws_helpers.PRIVATE_KEY)
 	if err != nil {
 		log.Fatalf("unable to read private key: %v", err)
 		return nil, err
@@ -297,55 +296,10 @@ func GetServerSigner() (ssh.Signer, error) {
 }
 
 func GetServerPublicKey() ([]byte, error) {
-	publicKey, err := ioutil.ReadFile("/Users/gadda/.ssh/id_rsa.pub")
+	publicKey, err := ioutil.ReadFile(aws_helpers.PUBLIC_KEY)
 	if err != nil {
 		log.Fatalf("unable to read private key: %v", err)
 		return nil, err
 	}
 	return publicKey, nil
-}
-
-func GetPublicIP(target_instance_id string) (string, error) {
-	var publicIP *string
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	}))
-
-	svc := ec2.New(sess, &aws.Config{Region: aws.String(DEFAULT_REGION)})
-
-	params := &ec2.DescribeInstancesInput{
-		Filters: []*ec2.Filter{
-			&ec2.Filter{
-				Name: aws.String("instance-state-name"),
-				Values: []*string{
-					aws.String("running"),
-				},
-			},
-			&ec2.Filter{
-				Name: aws.String("instance-id"),
-				Values: []*string{
-					aws.String(target_instance_id),
-				},
-			},
-		},
-	}
-
-	resp, err := svc.DescribeInstances(params)
-	if err != nil {
-		fmt.Printf("Error calling DescribeInstances: %v\n", err)
-		return "", fmt.Errorf("dsds")
-	}
-
-	// todo : handle return error in case are nil / empty
-	if resp.Reservations != nil &&
-		resp.Reservations[0] != nil &&
-		resp.Reservations[0].Instances != nil &&
-		resp.Reservations[0].Instances[0].PublicIpAddress != nil &&
-		len(*(resp.Reservations[0].Instances[0].PublicIpAddress)) > 0 {
-
-		publicIP = resp.Reservations[0].Instances[0].PublicIpAddress
-	} else {
-		return "", fmt.Errorf("Instance ID : %s, not resolved to IP Address", target_instance_id)
-	}
-	return *publicIP, nil
 }

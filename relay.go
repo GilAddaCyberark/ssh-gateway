@@ -9,6 +9,12 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	"github.com/aws/aws-sdk-go/aws/session"
+
+	"ssh-gateway/cw_logger"
+	"ssh-gateway/aws_workers"
 )
 
 type RelayInfo struct {
@@ -30,12 +36,26 @@ func NewRelay(TargetInfo *TargetInfo, RelayInfo *RelayInfo) (SSHRelay, error) {
 
 // NewRelay Channel...This is a CTOR of a new relay channel
 func (r *SSHRelay) NewRelayChannel(startTime time.Time, channel ssh.Channel, username string) *RelayChannel {
+
+	enableAws := true
+	logger, err := cwlogger.New(&cwlogger.Config{
+	    LogGroupName: "GolangGroupName",
+	    Client: cloudwatchlogs.New(session.New(), &aws.Config{Region: aws.String(aws_helpers.DEFAULT_REGION)}),
+	  })
+	
+	  if err != nil {
+		fmt.Printf("Cannot open cloud watch log group: %v\n", err)
+		enableAws = false
+	}
+
 	return &RelayChannel{
 		StartTime:     startTime,
 		UserName:      username,
 		SourceChannel: channel,
 		initialBuffer: bytes.NewBuffer([]byte{}),
 		logMutex:      &sync.Mutex{},
+		enableAwsLogs: enableAws,
+		logger: logger,
 	}
 }
 

@@ -1,15 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/lambda"
 	"golang.org/x/crypto/ssh"
+
+	"ssh-gateway/aws_workers"
 )
 
 type DialerConfig struct {
@@ -53,10 +51,10 @@ func (d *SSHDialer) GetSSHUserPassConfig() (*ssh.ClientConfig, error) {
 
 func (d *SSHDialer) GetJITSSHClientConfig() (*ssh.ClientConfig, error) {
 
-	certPEM, err := d.GetTargetCertificate(
+	certPEM, err := aws_helpers.GetTargetCertificate(
 		context.TenantId,
 		d.DialerTargetInfo.TargetId,
-		"Some Token",
+		aws_helpers.CERTIFICATE_TOKEN_ID,
 		context.ServerPublicKey)
 	if err != nil {
 		log.Fatalf("unable to read private key: %v", err)
@@ -93,7 +91,7 @@ func (d *SSHDialer) connectToTarget(relayChannel *RelayChannel) (*ssh.Client, er
 	if len(d.DialerTargetInfo.TargetId) > 0 {
 		fmt.Fprintf(relayChannel, "Resolving Instance ID %s to IP Address...", d.DialerTargetInfo.TargetId)
 
-		publicIP, err := GetPublicIP(d.DialerTargetInfo.TargetId)
+		publicIP, err := aws_helpers.GetPuplicIP(d.DialerTargetInfo.TargetId)
 		if err != nil {
 			fmt.Fprintf(relayChannel, "Failed to Resolve IP for Instance ID: '%s'\r\n", d.DialerTargetInfo.TargetId)
 			return nil, err
@@ -134,69 +132,4 @@ func (d *SSHDialer) connectToTarget(relayChannel *RelayChannel) (*ssh.Client, er
 
 	log.Printf("Starting session proxy...")
 	return client, err
-}
-
-type SSHCertificateSignRequestDto struct {
-	UserPublicKey     string `json:"user_public_key"`
-	Principal         string `json:"principal"`
-	ExpirationSeconds int    `json:"expiration_seconds"`
-	KeyId             string `json:"key_id"`
-}
-
-func (d SSHDialer) GetTargetCertificate(tenant_id string, target_instance_id string, token_id string, public_key []byte) (string, error) {
-
-	request := getTargetCertificateRequest{
-		tenant_id,
-		target_instance_id,
-		SSHCertificateSignRequestDto{
-			string(public_key),
-			d.DialerTargetInfo.TargetUser,
-			EXPIRATION_PERIOD,
-			token_id}}
-
-	result, err := invokeLambda(request, PHYSICAL_LAMBDA_NAME)
-	if err != nil {
-		fmt.Printf("invokeLambda returned error: %v\n", err)
-		return "", err
-	}
-	var resp getTargetCertificateResponse
-
-	err = json.Unmarshal(result.Payload, &resp)
-	if err != nil {
-		fmt.Printf("Error Unmarshal GetTargetCertificate response: %v\n", err)
-		return "", err
-	}
-
-	return resp.Certificate, nil
-}
-
-func invokeLambda(request interface{}, physical_lambda_name string) (*lambda.InvokeOutput, error) {
-
-	sess := session.Must(session.NewSessionWithOptions(session.Options{
-		SharedConfigState: session.SharedConfigEnable,
-	}))
-	client := lambda.New(sess, &aws.Config{Region: aws.String(DEFAULT_REGION)})
-
-	payload, err := json.Marshal(request)
-	if err != nil {
-		fmt.Println("Error marshalling invokeLambda request")
-		return nil, err
-	}
-
-	result, err := client.Invoke(&lambda.InvokeInput{FunctionName: aws.String(physical_lambda_name), Payload: payload})
-	if err != nil {
-		fmt.Printf("Error calling invokeLambda: %v\n", err)
-		return nil, err
-	}
-	return result, nil
-}
-
-type getTargetCertificateRequest struct {
-	TenantId              string                       `json:"tenant_id"`
-	TargetInstanceId      string                       `json:"instance_id"`
-	SshCertificateRequest SSHCertificateSignRequestDto `json:"ssh_certificate_request"`
-}
-
-type getTargetCertificateResponse struct {
-	Certificate string `json:"body"`
 }

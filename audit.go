@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	cwlogger "ssh-gateway/cw_logger"
+
 	"golang.org/x/crypto/ssh"
 )
 
@@ -18,6 +20,8 @@ type RelayChannel struct {
 	initialBuffer   *bytes.Buffer
 	logMutex        *sync.Mutex
 	enableRecording bool
+	logger          *cwlogger.Logger
+	enableAwsLogs   bool
 }
 
 func (l *RelayChannel) SyncToFile(remote_name string, recordingDir string) error {
@@ -62,6 +66,10 @@ func (l *RelayChannel) Write(data []byte) (int, error) {
 		} else {
 			l.initialBuffer.Write(data)
 		}
+
+		if(l.enableAwsLogs && l.logger != nil){
+			l.logger.Log(time.Now(), string(data))
+		}
 	}
 	l.logMutex.Unlock()
 
@@ -77,6 +85,13 @@ func (l *RelayChannel) Close() error {
 	if l.fd != nil {
 		l.fd.Close()
 	}
+
+	if l.enableAwsLogs {
+		if(l.logger != nil){
+			l.logger.Close()
+		}
+	}
+
 	return l.SourceChannel.Close()
 }
 

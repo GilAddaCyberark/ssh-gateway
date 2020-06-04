@@ -7,15 +7,14 @@ import(
     "github.com/aws/aws-sdk-go/service/ec2"
 )
 
-func GetPuplicIP(target_instance_id string) (string, error){
+func GetPuplicIP(target_instance_id string) (ip string, err error){
     defer func() {
         if r := recover(); r != nil {
-           err := r.(error)
-           panic(err)
+           ip = ""
+           err = r.(error)
         }
-     }()
+    }()
      
-    //region := session.
     sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
