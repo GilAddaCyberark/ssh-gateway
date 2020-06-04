@@ -112,13 +112,12 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		fmt.Fprintf(relayChannel, "Failed to Initialize Session.\r\n")
 		return err
 	}
-	targetURL := fmt.Sprintf("%s:%d", r.RelayTargetInfo.TargetAddress, r.RelayTargetInfo.TargetPort)
-	client, err := dialer.connectToTarget(targetURL, relayChannel)
+	client, err := dialer.connectToTarget(relayChannel)
 	if err != nil {
 		if client != nil {
 			client.Close()
 		} else {
-			log.Printf("Connection failed to target: %s", targetURL)
+			log.Printf("Connection failed to target:")
 		}
 		return err
 

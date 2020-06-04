@@ -1,10 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/lambda"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -32,7 +36,7 @@ func NewDialer(TargetInfo *TargetInfo) (SSHDialer, error) {
 // Dial To target, get target and open session
 
 // get user pass
-func (d *SSHDialer) GetSSHUserPassConfig() *ssh.ClientConfig {
+func (d *SSHDialer) GetSSHUserPassConfig() (*ssh.ClientConfig, error) {
 	sshUserPassConfig := &ssh.ClientConfig{
 		User: d.DialerTargetInfo.TargetUser,
 		// todo : change this implementation to be passed from the idp / secret manage
@@ -44,72 +48,81 @@ func (d *SSHDialer) GetSSHUserPassConfig() *ssh.ClientConfig {
 	if sshUserPassConfig == nil {
 		log.Fatal("No ssh user pass config")
 	}
-	return sshUserPassConfig
+	return sshUserPassConfig, nil
 }
 
-func (d *SSHDialer) GetJITSSHClientConfig() {
-	// // Todo : implement ssh.clientconfig - gil
-	// 	// SSH Cert Config
+func (d *SSHDialer) GetJITSSHClientConfig() (*ssh.ClientConfig, error) {
 
-	// 	key, err := ioutil.ReadFile("/Users/gadda/.ssh/id_rsa")
-	// 	if err != nil {
-	// 		log.Fatalf("unable to read private key: %v", err)
-	// 	}
+	certPEM, err := d.GetTargetCertificate(
+		context.TenantId,
+		d.DialerTargetInfo.TargetId,
+		"Some Token",
+		context.ServerPublicKey)
+	if err != nil {
+		log.Fatalf("unable to read private key: %v", err)
 
-	// 	// Create the Signer for this private key.
-	// 	signer, err := ssh.ParsePrivateKey(key)
-	// 	if err != nil {
-	// 		log.Fatalf("unable to parse private key: %v", err)
-	// 	}
+	}
 
-	// 	// Load the certificate
-	// 	cert, err := ioutil.ReadFile("/Users/gadda/.ssh/id_rsa-cert.pub")
-	// 	if err != nil {
-	// 		log.Fatalf("unable to read certificate file: %v", err)
-	// 	}
+	pk, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certPEM))
+	if err != nil {
+		log.Fatalf("unable to parse public key: %v", err)
+	}
+	_ = pk
 
-	// 	pk, _, _, _, err := ssh.ParseAuthorizedKey(cert)
-	// 	if err != nil {
-	// 		log.Fatalf("unable to parse public key: %v", err)
-	// 	}
+	certSigner, err := ssh.NewCertSigner(pk.(*ssh.Certificate), context.ServerSigner)
+	if err != nil {
+		log.Fatalf("failed to create cert signer: %v", err)
+	}
 
-	// 	certSigner, err := ssh.NewCertSigner(pk.(*ssh.Certificate), signer)
-	// 	if err != nil {
-	// 		log.Fatalf("failed to create cert signer: %v", err)
-	// 	}
+	clientConfig := &ssh.ClientConfig{
+		User: d.DialerTargetInfo.TargetUser,
+		Auth: []ssh.AuthMethod{
+			// Use the PublicKeys method for remote authentication.
+			ssh.PublicKeys(certSigner),
+		},
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+	}
 
-	// 	cert_config := &ssh.ClientConfig{
-	// 		User: "ec2-user",
-	// 		Auth: []ssh.AuthMethod{
-	// 			// Use the PublicKeys method for remote authentication.
-	// 			ssh.PublicKeys(certSigner),
-	// 		},
-	// 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-	// 	}
-
-	// 	return cert_config
+	return clientConfig, nil
 }
 
-func (d *SSHDialer) GetJitSSHCeretificate(targetId string) {
-	//todo : implememt jit certificate from lambda  ...dima the king
-}
-
-func (d *SSHDialer) GetTargetIDAddress(targetId string) {
-	//todo : implememt jit certificate from lambda  ...dima the king
-}
-
-func (d *SSHDialer) connectToTarget(remoteAddr string, relayChannel *RelayChannel) (*ssh.Client, error) {
-	// WriteAuthLog("Connecting to remote for relay (%s) by %s from %s.", remote.ConnectPath, sshConn.User(), sshConn.RemoteAddr())
-	fmt.Fprintf(relayChannel, "Connecting to %s\r\n", remoteAddr)
-
+func (d *SSHDialer) connectToTarget(relayChannel *RelayChannel) (*ssh.Client, error) {
 	var clientConfig *ssh.ClientConfig
+	var err error
+
+	if len(d.DialerTargetInfo.TargetId) > 0 {
+		fmt.Fprintf(relayChannel, "Resolving Instance ID %s to IP Address...", d.DialerTargetInfo.TargetId)
+
+		publicIP, err := GetPublicIP(d.DialerTargetInfo.TargetId)
+		if err != nil {
+			fmt.Fprintf(relayChannel, "Failed to Resolve IP for Instance ID: '%s'\r\n", d.DialerTargetInfo.TargetId)
+			return nil, err
+		}
+		d.DialerTargetInfo.TargetAddress = publicIP
+		fmt.Fprintf(relayChannel, "Resolved IP Address:%s\r\n", d.DialerTargetInfo.TargetAddress)
+
+	}
+
+	remoteAddr := fmt.Sprintf("%s:%d", d.DialerTargetInfo.TargetAddress, d.DialerTargetInfo.TargetPort)
+	fmt.Fprintf(relayChannel, "Connecting to %s\r\n", remoteAddr)
 	log.Printf("Try to connect to target: %s", remoteAddr)
 
-	if dialerConfig.AuthType == "pass" {
-		clientConfig = d.GetSSHUserPassConfig()
+	if d.DialerTargetInfo.AuthType == "pass" {
+		clientConfig, err = d.GetSSHUserPassConfig()
+		if err != nil {
+			return nil, err
+		}
+
+	} else if d.DialerTargetInfo.AuthType == "cert" {
+		clientConfig, err = d.GetJITSSHClientConfig()
+		if err != nil {
+			return nil, err
+		}
+
 	} else {
 		log.Fatalf("Wrong Auth Type...")
 	}
+
 	remoteHost := fmt.Sprintf("%s:%d", d.DialerTargetInfo.TargetAddress, d.DialerTargetInfo.TargetPort)
 	client, err := ssh.Dial("tcp", remoteHost, clientConfig)
 	if err != nil {
@@ -121,4 +134,69 @@ func (d *SSHDialer) connectToTarget(remoteAddr string, relayChannel *RelayChanne
 
 	log.Printf("Starting session proxy...")
 	return client, err
+}
+
+type SSHCertificateSignRequestDto struct {
+	UserPublicKey     string `json:"user_public_key"`
+	Principal         string `json:"principal"`
+	ExpirationSeconds int    `json:"expiration_seconds"`
+	KeyId             string `json:"key_id"`
+}
+
+func (d SSHDialer) GetTargetCertificate(tenant_id string, target_instance_id string, token_id string, public_key []byte) (string, error) {
+
+	request := getTargetCertificateRequest{
+		tenant_id,
+		target_instance_id,
+		SSHCertificateSignRequestDto{
+			string(public_key),
+			d.DialerTargetInfo.TargetUser,
+			EXPIRATION_PERIOD,
+			token_id}}
+
+	result, err := invokeLambda(request, PHYSICAL_LAMBDA_NAME)
+	if err != nil {
+		fmt.Printf("invokeLambda returned error: %v\n", err)
+		return "", err
+	}
+	var resp getTargetCertificateResponse
+
+	err = json.Unmarshal(result.Payload, &resp)
+	if err != nil {
+		fmt.Printf("Error Unmarshal GetTargetCertificate response: %v\n", err)
+		return "", err
+	}
+
+	return resp.Certificate, nil
+}
+
+func invokeLambda(request interface{}, physical_lambda_name string) (*lambda.InvokeOutput, error) {
+
+	sess := session.Must(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+	client := lambda.New(sess, &aws.Config{Region: aws.String(DEFAULT_REGION)})
+
+	payload, err := json.Marshal(request)
+	if err != nil {
+		fmt.Println("Error marshalling invokeLambda request")
+		return nil, err
+	}
+
+	result, err := client.Invoke(&lambda.InvokeInput{FunctionName: aws.String(physical_lambda_name), Payload: payload})
+	if err != nil {
+		fmt.Printf("Error calling invokeLambda: %v\n", err)
+		return nil, err
+	}
+	return result, nil
+}
+
+type getTargetCertificateRequest struct {
+	TenantId              string                       `json:"tenant_id"`
+	TargetInstanceId      string                       `json:"instance_id"`
+	SshCertificateRequest SSHCertificateSignRequestDto `json:"ssh_certificate_request"`
+}
+
+type getTargetCertificateResponse struct {
+	Certificate string `json:"body"`
 }

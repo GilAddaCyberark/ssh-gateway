@@ -12,5 +12,15 @@ To launch the ssh gatway
 3. running a client vs the ssh gateway is done by: 
     ssh personal_user@target_user@target_address@bastion_address
 
-    Example: 
-    ssh gadda@gil@176.34.154.225:2025@localhost -p 2222
+    Example:
+    ssh gadda@ec2-user@i-06316bc63aea813ec@localhost -p 2233
+    ssh gadda@gil@ec2-54-75-3-176.eu-west-1.compute.amazonaws.com:2022@localhost -p 2233
+
+Future Ideas - 
+Multi cloud instance id tokens:
+e.g. 
+aws#i-06316bc63aea813ec
+gcp#some-instance_id
+azr#another_ms_cloud_machine
+
+log to EWS , monitor suspicious commnands
