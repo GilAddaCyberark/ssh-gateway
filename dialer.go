@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"ssh-gateway/aws_workers"
+	aws_helpers "ssh-gateway/aws_workers"
 )
 
 type DialerConfig struct {
@@ -90,12 +90,19 @@ func (d *SSHDialer) connectToTarget(relayChannel *RelayChannel) (*ssh.Client, er
 
 	if len(d.DialerTargetInfo.TargetId) > 0 {
 		fmt.Fprintf(relayChannel, "Resolving Instance ID %s to IP Address...", d.DialerTargetInfo.TargetId)
-
-		publicIP, err := aws_helpers.GetPuplicIP(d.DialerTargetInfo.TargetId)
-		if err != nil {
-			fmt.Fprintf(relayChannel, "Failed to Resolve IP for Instance ID: '%s'\r\n", d.DialerTargetInfo.TargetId)
+		var publicIP string
+		if d.DialerTargetInfo.TargetProvider == "aws" {
+			publicIP, err = aws_helpers.GetPuplicIP(d.DialerTargetInfo.TargetId)
+			if err != nil {
+				fmt.Fprintf(relayChannel, "Failed to Resolve IP for Instance ID: '%s'\r\n", d.DialerTargetInfo.TargetId)
+				return nil, err
+			}
+		} else {
+			fmt.Fprintf(relayChannel, "Failed to Resolve provider name: '%s'\r\n", d.DialerTargetInfo.TargetProvider)
+			err := fmt.Errorf("Unable to resolve provide")
 			return nil, err
 		}
+
 		d.DialerTargetInfo.TargetAddress = publicIP
 		fmt.Fprintf(relayChannel, "Resolved IP Address:%s\r\n", d.DialerTargetInfo.TargetAddress)
 

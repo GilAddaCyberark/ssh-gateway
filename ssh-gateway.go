@@ -15,10 +15,11 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"ssh-gateway/aws_workers"
+	aws_helpers "ssh-gateway/aws_workers"
 )
 
 const SERVER_VERSION = "SSH-2.0-EVEREST-SSH-GW"
+const AWS_PROVIDER_PREFIX = "aws"
 
 var context *ServerContext
 
@@ -29,12 +30,13 @@ type ServerContext struct {
 }
 
 type TargetInfo struct {
-	TargetUser    string
-	TargetPass    string
-	TargetAddress string
-	TargetPort    int
-	TargetId      string
-	AuthType      string
+	TargetUser     string
+	TargetPass     string
+	TargetAddress  string
+	TargetPort     int
+	TargetProvider string
+	TargetId       string
+	AuthType       string
 }
 
 type ServerConfig struct {
@@ -77,6 +79,8 @@ func (s *SSHGateway) NewSSHGateway() error {
 					"user_id": s.TargetInfo.TargetUser,
 				},
 			}
+
+			log.Printf("Authentiated to IDP with user: %s ,pass :%s\n", s.PersonalUser, s.PersonalPass)
 			return perms, nil
 		},
 		BannerCallback: func(c ssh.ConnMetadata) string {
@@ -112,6 +116,8 @@ func (s *SSHGateway) ParsePSMSyntaxUser(user string) error {
 	s.TargetInfo.TargetPort = 22
 	s.TargetInfo.TargetAddress = ""
 	s.TargetInfo.TargetId = ""
+	s.TargetInfo.TargetProvider = ""
+
 	parts := strings.Split(user, "@")
 	if len(parts) < 3 {
 		return fmt.Errorf("Unsupported user format: %s, cannot be parsed into personal user, target, port ")
@@ -123,18 +129,29 @@ func (s *SSHGateway) ParsePSMSyntaxUser(user string) error {
 
 	// Handle Address
 	if len(parts[2]) > 0 {
-		// Split Port from Address
+		// Split to port and address
 		if strings.Contains(s.TargetInfo.TargetAddress, ":") {
-			addressParts := strings.Split(parts[2], ":")
-			s.TargetInfo.TargetAddress = addressParts[0]
-			s.TargetInfo.TargetPort, err = strconv.Atoi(addressParts[1])
+			portParts := strings.Split(parts[2], ":")
+			s.TargetInfo.TargetAddress = portParts[0]
+			s.TargetInfo.TargetPort, err = strconv.Atoi(portParts[1])
 			if err != nil {
 				return fmt.Errorf("Error")
 			}
 		}
+		// Set Provider (Amazon, gcp, azure) , Remove  Prefix from target address
+		instanceParts := strings.Split(s.TargetInfo.TargetAddress, "#")
+		if len(instanceParts) > 1 {
+			if instanceParts[0] == AWS_PROVIDER_PREFIX {
+				s.TargetInfo.TargetAddress = instanceParts[1]
+				s.TargetInfo.TargetProvider = AWS_PROVIDER_PREFIX
+			} else {
+				return fmt.Errorf("Unidentofied cloud provider %s", instanceParts[0])
+			}
+		}
+
 		// Handle AWS Instance id or an IP Address
-		if strings.HasPrefix(parts[2], "i-") {
-			s.TargetInfo.TargetId = parts[2]
+		if strings.HasPrefix(s.TargetInfo.TargetAddress, "i-") {
+			s.TargetInfo.TargetId = s.TargetInfo.TargetAddress
 			s.TargetInfo.TargetAddress = ""
 			s.TargetInfo.AuthType = "cert"
 		}

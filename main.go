@@ -15,6 +15,10 @@ type ConfigGlobal struct {
 	Dialer DialerConfig
 }
 
+const (
+	FileNotFoundExitCode int = 1
+)
+
 var globalConfig *ConfigGlobal
 var serverConfig *ServerConfig
 var dialerConfig *DialerConfig
@@ -57,7 +61,7 @@ func setConfig() {
 	config, err := loadConfig()
 	if err != nil {
 		fmt.Printf("Load Configuration error: %v\n", err)
-		panic(err)
+		os.Exit(FileNotFoundExitCode)
 	}
 
 	serverConfig = &config.Server
@@ -85,7 +89,8 @@ func loadConfig() (*ConfigGlobal, error) {
 		return config, nil
 
 	} else {
-		return nil, fmt.Errorf("Unexpected error with json config file: %s", configFilePath)
+		err := fmt.Errorf("Config file not found: %s", *configFilePath)
+		return nil, err
 	}
 	return nil, fmt.Errorf("Unexpected error with json config file: %s", configFilePath)
 }
