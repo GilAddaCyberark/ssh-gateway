@@ -68,7 +68,7 @@ func (l *RelayChannel) Write(data []byte) (int, error) {
 			l.initialBuffer.Write(data)
 		}
 
-		if(l.enableAwsLogs && l.Logger != nil){
+		if l.enableAwsLogs && l.Logger != nil {
 			l.Logger.Log(time.Now(), string(data))
 		}
 	}
@@ -81,8 +81,8 @@ func (l *RelayChannel) Write(data []byte) (int, error) {
 func (l *RelayChannel) Close() error {
 
 	if l.enableAwsLogs {
-		if(l.Logger != nil){
-			l.Logger.Log(time.Now(), "Session terminated: " + l.SessionId)
+		if l.Logger != nil {
+			l.Logger.SessionFinished("Session terminated: "+l.SessionId, "Close")
 			l.Logger.Close()
 		}
 	}

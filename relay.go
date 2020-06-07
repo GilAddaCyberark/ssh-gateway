@@ -154,7 +154,7 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		return err
 	}
 	log.Printf("Starting session proxy...")
-	relayChannel.Logger.Log(time.Now(), "Session started: "+relayChannel.SessionId)
+	relayChannel.Logger.SessionStarted("Session started: "+relayChannel.SessionId, "ProxySession")
 	r.proxy(maskedReqs, reqs2, relayChannel, channel2)
 
 	return nil
