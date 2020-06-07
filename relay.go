@@ -8,13 +8,14 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/ssh"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	guuid "github.com/google/uuid"
+	"golang.org/x/crypto/ssh"
 
-	"ssh-gateway/cw_logger"
-	"ssh-gateway/aws_workers"
+	aws_helpers "ssh-gateway/aws_workers"
+	cwlogger "ssh-gateway/cw_logger"
 )
 
 type RelayInfo struct {
@@ -39,11 +40,11 @@ func (r *SSHRelay) NewRelayChannel(startTime time.Time, channel ssh.Channel, use
 
 	enableAws := true
 	logger, err := cwlogger.New(&cwlogger.Config{
-	    LogGroupName: "GolangGroupName",
-	    Client: cloudwatchlogs.New(session.New(), &aws.Config{Region: aws.String(aws_helpers.DEFAULT_REGION)}),
-	  })
-	
-	  if err != nil {
+		LogGroupName: "SSH_Gateway_Logs",
+		Client:       cloudwatchlogs.New(session.New(), &aws.Config{Region: aws.String(aws_helpers.DEFAULT_REGION)}),
+	})
+
+	if err != nil {
 		fmt.Printf("Cannot open cloud watch log group: %v\n", err)
 		enableAws = false
 	}
@@ -55,7 +56,8 @@ func (r *SSHRelay) NewRelayChannel(startTime time.Time, channel ssh.Channel, use
 		initialBuffer: bytes.NewBuffer([]byte{}),
 		logMutex:      &sync.Mutex{},
 		enableAwsLogs: enableAws,
-		logger: logger,
+		Logger:        logger,
+		SessionId:     guuid.New().String(),
 	}
 }
 
@@ -152,6 +154,7 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		return err
 	}
 	log.Printf("Starting session proxy...")
+	relayChannel.Logger.Log(time.Now(), "Session started: "+relayChannel.SessionId)
 	r.proxy(maskedReqs, reqs2, relayChannel, channel2)
 
 	return nil

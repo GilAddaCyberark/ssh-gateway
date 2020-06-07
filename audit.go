@@ -20,8 +20,9 @@ type RelayChannel struct {
 	initialBuffer   *bytes.Buffer
 	logMutex        *sync.Mutex
 	enableRecording bool
-	logger          *cwlogger.Logger
+	Logger          *cwlogger.Logger
 	enableAwsLogs   bool
+	SessionId       string
 }
 
 func (l *RelayChannel) SyncToFile(remote_name string, recordingDir string) error {
@@ -67,8 +68,8 @@ func (l *RelayChannel) Write(data []byte) (int, error) {
 			l.initialBuffer.Write(data)
 		}
 
-		if(l.enableAwsLogs && l.logger != nil){
-			l.logger.Log(time.Now(), string(data))
+		if(l.enableAwsLogs && l.Logger != nil){
+			l.Logger.Log(time.Now(), string(data))
 		}
 	}
 	l.logMutex.Unlock()
@@ -78,18 +79,20 @@ func (l *RelayChannel) Write(data []byte) (int, error) {
 }
 
 func (l *RelayChannel) Close() error {
+
+	if l.enableAwsLogs {
+		if(l.Logger != nil){
+			l.Logger.Log(time.Now(), "Session terminated: " + l.SessionId)
+			l.Logger.Close()
+		}
+	}
+
 	if !l.enableRecording {
 		return nil
 	}
 
 	if l.fd != nil {
 		l.fd.Close()
-	}
-
-	if l.enableAwsLogs {
-		if(l.logger != nil){
-			l.logger.Close()
-		}
 	}
 
 	return l.SourceChannel.Close()
