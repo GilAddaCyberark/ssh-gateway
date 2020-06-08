@@ -13,7 +13,19 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+
+	aws_helpers "ssh-gateway/aws_workers"
 )
+
+type LogRequestDto struct {
+	TenantId          string            `json:"tenant"`
+	Region            string            `json:"origin_service_region"`
+	LogLevel          string            `json:"log_level"`
+	OriginServiceName string            `json:"origin_service_name"`
+	Message           string            `json:"message"`
+	Timestamp         string            `json:"timestamp"`
+	ContextInfo       map[string]string `json:"context_info"`
+}
 
 // The Config for the Logger.
 type Config struct {
@@ -92,6 +104,66 @@ func New(config *Config) (*Logger, error) {
 	go lg.worker()
 
 	return lg, nil
+}
+
+func (lg *Logger) SessionStarted(message string, function_name string) {
+	lrd := getDefaultLogRequestDto(message)
+	lrd.LogLevel = "INFO"
+	context_info := make(map[string]string)
+	context_info["Action"] = "SessionStarted"
+	lrd.ContextInfo = context_info
+	lg.log(time.Now(), &lrd)
+}
+
+func (lg *Logger) SessionFinished(message string, function_name string) {
+	lrd := getDefaultLogRequestDto(message)
+	lrd.LogLevel = "INFO"
+	context_info := make(map[string]string)
+	context_info["Action"] = "SessionFinished"
+	lrd.ContextInfo = context_info
+	lg.log(time.Now(), &lrd)
+}
+
+func (lg *Logger) LogInfo(message string, function_name string) {
+	lrd := getDefaultLogRequestDto(message)
+	lrd.LogLevel = "INFO"
+	lg.log(time.Now(), &lrd)
+}
+
+func (lg *Logger) LogError(message string, function_name string) {
+	lrd := getDefaultLogRequestDto(message)
+	lrd.LogLevel = "ERROR"
+	lg.log(time.Now(), &lrd)
+}
+
+func (lg *Logger) LogWarning(message string, function_name string) {
+	lrd := getDefaultLogRequestDto(message)
+	lrd.LogLevel = "WARNING"
+	lg.log(time.Now(), &lrd)
+}
+
+func getDefaultLogRequestDto(message string) LogRequestDto {
+	return LogRequestDto{
+		TenantId:          aws_helpers.TENANT_ID,
+		Region:            aws_helpers.DEFAULT_REGION,
+		OriginServiceName: "SSH Gateway Service",
+		Timestamp:         time.Now().Format("2006-01-02T15:04:05.000000"),
+		Message:           message,
+	}
+}
+
+func (lg *Logger) log(t time.Time, lrd *LogRequestDto) {
+
+	bArr, _ := json.Marshal(lrd)
+	var msg string = string(bArr)
+	lg.wg.Add(1)
+	go func() {
+		lg.batcher.input <- &cloudwatchlogs.InputLogEvent{
+			Message:   &msg,
+			Timestamp: aws.Int64(t.UnixNano() / int64(time.Millisecond)),
+		}
+		lg.wg.Done()
+	}()
 }
 
 // Log enqueues a log message to be written to a log stream.

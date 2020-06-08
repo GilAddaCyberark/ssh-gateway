@@ -52,6 +52,7 @@ type SSHGateway struct {
 	TargetInfo    *TargetInfo
 	RelayInfo     *RelayInfo
 	listeningPort int
+	// Set Global Gateway Logger
 }
 
 // Create the configuration of a new server and start it

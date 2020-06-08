@@ -27,6 +27,10 @@ func NewRelay(TargetInfo *TargetInfo, RelayInfo *RelayInfo) (SSHRelay, error) {
 
 func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, srvNewChannel ssh.NewChannel, chans <-chan ssh.NewChannel) error {
 
+	// Set Session ID + New Logger per session
+	// sessionId :=  guuid.New().String()
+	// Create Logger - dima
+
 	// Accept Connection
 	sourceChannel, sourceRequests, err := srvNewChannel.Accept()
 	if err != nil {
@@ -106,6 +110,10 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	}
 	log.Printf("Starting session proxy...")
 	// Start Recordig
+	// Log session start
+	// relayChannel.Logger.SessionStarted("Session started: "+relayChannel.SessionId, "ProxySession")
 	InitRecording(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests, &recorders)
+	// Log Session Close
+	// Log.Sesso...
 	return nil
 }
