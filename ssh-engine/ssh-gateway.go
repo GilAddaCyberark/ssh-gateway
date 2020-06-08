@@ -13,10 +13,11 @@ import (
 	"strings"
 	"time"
 
+	guuid "github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 
 	aws_helpers "ssh-gateway/aws_workers"
-	"ssh-gateway/ssh-engine/generic-structs"
+	generic_structs "ssh-gateway/ssh-engine/generic-structs"
 )
 
 const SERVER_VERSION = "SSH-2.0-EVEREST-SSH-GW"
@@ -105,6 +106,7 @@ func (s *SSHGateway) ParsePSMSyntaxUser(user string) error {
 	// Parsing the target info from the ssh user format
 	//ssh personal_user@target_user@target_address@ssh_gw_address
 	var err error = nil
+	s.TargetInfo.SessionId = guuid.New().String()
 	s.TargetInfo.TargetPort = 22
 	s.TargetInfo.TargetAddress = ""
 	s.TargetInfo.TargetId = ""

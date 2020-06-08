@@ -8,4 +8,5 @@ type TargetInfo struct {
 	TargetProvider string
 	TargetId       string
 	AuthType       string
+	SessionId      string
 }

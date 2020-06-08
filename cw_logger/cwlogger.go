@@ -12,13 +12,21 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 
 	aws_helpers "ssh-gateway/aws_workers"
-	"ssh-gateway/ssh-engine/generic-structs"
+	gen "ssh-gateway/ssh-engine/generic-structs"
 )
 
-const logGroupName = "SSH_Gateway_Logs"
+const (
+	INFO     = "INFO"
+	WARNING  = "WARNING"
+	ERROR    = "ERROR"
+	CRITICAL = "CRITICAL"
+)
+
+const logGroupName string = "SSH_Gateway_Logs"
 
 type LogRequestDto struct {
 	TenantId          string            `json:"tenant"`
@@ -62,23 +70,23 @@ type Logger struct {
 	done          chan bool
 	errorReporter func(err error)
 	retention     int
-	targetInfo    generic_structs.TargetInfo
+	targetInfo    *gen.TargetInfo
 }
 
-// New creates a new Logger.
-//
-// Creates the log group if it doesn't yet exist, and one initial log stream for
-// writing logs into.
-//
-// Returns an error if the configuration is invalid, or if either the creation
-// of the log group or log stream fail.
-func New(config *Config) (*Logger, error) {
+func NewLoggerByTargetInfo(targetInfo *gen.TargetInfo) (*Logger, error) {
+	return New(&Config{
+		LogGroupName: "SSH_Gateway_Logs",
+		Client:       cloudwatchlogs.New(session.New(), &aws.Config{Region: aws.String(aws_helpers.DEFAULT_REGION)}),
+	}, targetInfo)
+}
+
+func New(config *Config, targetInfo *gen.TargetInfo) (*Logger, error) {
 	if config.Client == nil {
 		return nil, errors.New("cwlogger: config missing required Client")
 	}
 
 	if config.LogGroupName == "" {
-		return nil, errors.New("cwlogger: config missing required LogGroupName")
+		config.LogGroupName = logGroupName
 	}
 
 	errorReporter := noopErrorReporter
@@ -94,6 +102,7 @@ func New(config *Config) (*Logger, error) {
 		prefix:        randomHex(32),
 		batcher:       newBatcher(),
 		done:          make(chan bool),
+		targetInfo:    targetInfo,
 	}
 
 	lg.streams = newLogStreams(lg)
@@ -111,49 +120,68 @@ func New(config *Config) (*Logger, error) {
 }
 
 func (lg *Logger) SessionStarted(message string, function_name string) {
-	lrd := getDefaultLogRequestDto(message)
-	lrd.LogLevel = "INFO"
-	context_info := make(map[string]string)
-	context_info["Action"] = "SessionStarted"
-	lrd.ContextInfo = context_info
+	lrd := lg.getDefaultLogRequestDto(message)
+	if lrd.ContextInfo == nil {
+		context_info := make(map[string]string)
+		lrd.ContextInfo = context_info
+	}
+	lrd.ContextInfo["Action"] = "SessionStarted"
+	lrd.LogLevel = INFO
 	lg.log(time.Now(), &lrd)
 }
 
 func (lg *Logger) SessionFinished(message string, function_name string) {
-	lrd := getDefaultLogRequestDto(message)
-	lrd.LogLevel = "INFO"
-	context_info := make(map[string]string)
-	context_info["Action"] = "SessionFinished"
-	lrd.ContextInfo = context_info
+	lrd := lg.getDefaultLogRequestDto(message)
+	lrd.LogLevel = INFO
+	if lrd.ContextInfo == nil {
+		context_info := make(map[string]string)
+		lrd.ContextInfo = context_info
+	}
+	lrd.ContextInfo["Action"] = "SessionFinished"
 	lg.log(time.Now(), &lrd)
 }
 
 func (lg *Logger) LogInfo(message string, function_name string) {
-	lrd := getDefaultLogRequestDto(message)
-	lrd.LogLevel = "INFO"
+	lrd := lg.getDefaultLogRequestDto(message)
+	lrd.LogLevel = INFO
 	lg.log(time.Now(), &lrd)
 }
 
 func (lg *Logger) LogError(message string, function_name string) {
-	lrd := getDefaultLogRequestDto(message)
-	lrd.LogLevel = "ERROR"
+	lrd := lg.getDefaultLogRequestDto(message)
+	lrd.LogLevel = ERROR
 	lg.log(time.Now(), &lrd)
 }
 
 func (lg *Logger) LogWarning(message string, function_name string) {
-	lrd := getDefaultLogRequestDto(message)
-	lrd.LogLevel = "WARNING"
+	lrd := lg.getDefaultLogRequestDto(message)
+	lrd.LogLevel = WARNING
 	lg.log(time.Now(), &lrd)
 }
 
-func getDefaultLogRequestDto(message string) LogRequestDto {
-	return LogRequestDto{
+func (lg *Logger) getDefaultLogRequestDto(message string) LogRequestDto {
+	lrd := LogRequestDto{
 		TenantId:          aws_helpers.TENANT_ID,
 		Region:            aws_helpers.DEFAULT_REGION,
 		OriginServiceName: "SSH Gateway Service",
 		Timestamp:         time.Now().Format("2006-01-02T15:04:05.000000"),
 		Message:           message,
 	}
+
+	if lg.targetInfo != nil {
+		context_info := make(map[string]string)
+		context_info["TargetUser"] = lg.targetInfo.TargetUser
+		context_info["TargetAddress"] = lg.targetInfo.TargetAddress
+		context_info["TargetPort"] = strconv.Itoa(lg.targetInfo.TargetPort)
+		context_info["TargetProvider"] = lg.targetInfo.TargetProvider
+		context_info["TargetId"] = lg.targetInfo.TargetId
+		context_info["AuthType"] = lg.targetInfo.AuthType
+		context_info["SessionId"] = lg.targetInfo.SessionId
+
+		lrd.ContextInfo = context_info
+	}
+
+	return lrd
 }
 
 func (lg *Logger) log(t time.Time, lrd *LogRequestDto) {
@@ -353,7 +381,11 @@ func (ls *logStream) write(b []*cloudwatchlogs.InputLogEvent) error {
 		SequenceToken: ls.sequenceToken,
 	})
 
-	req.Sign()
+	err := req.Sign()
+	if err != nil {
+		return err
+	}
+
 	resp, err := ls.logger.svc.Client.Config.HTTPClient.Do(req.HTTPRequest)
 
 	if err != nil {
@@ -388,6 +420,9 @@ func (ls *logStream) write(b []*cloudwatchlogs.InputLogEvent) error {
 
 func randomHex(n int) string {
 	b := make([]byte, n)
-	rand.Read(b)
+	_, err := rand.Read(b)
+	if err != nil {
+		return ""
+	}
 	return hex.EncodeToString(b)
 }

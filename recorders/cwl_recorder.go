@@ -2,13 +2,8 @@ package recorders
 
 import (
 	"bytes"
-	aws_helpers "ssh-gateway/aws_workers"
 	cwlogger "ssh-gateway/cw_logger"
-	"time"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
+	gen "ssh-gateway/ssh-engine/generic-structs"
 )
 
 type CWLRecorder struct {
@@ -16,26 +11,27 @@ type CWLRecorder struct {
 	logBuffer *bytes.Buffer
 }
 
-func NewCWLRecorder() (*CWLRecorder, error) {
+func NewCWLRecorder(targetInfo *gen.TargetInfo) (*CWLRecorder, error) {
 	cwl := CWLRecorder{}
-	// cwl.Logger = &cwlogger.Logger{}
-	logger, err := cwlogger.New(&cwlogger.Config{
-		LogGroupName: "SSH_Gateway_Logs",
-		Client:       cloudwatchlogs.New(session.New(), &aws.Config{Region: aws.String(aws_helpers.DEFAULT_REGION)}),
-	})
+	logger, err := cwlogger.NewLoggerByTargetInfo(targetInfo)
+
 	if err != nil {
 		return nil, err
 	}
 	cwl.Logger = logger
+	cwl.Logger.SessionStarted("Session started", "NewCWLRecorder")
+
 	return &cwl, nil
 }
+
 func (c *CWLRecorder) Init() error {
 	return nil
 }
 func (c *CWLRecorder) Close() error {
+	c.Logger.SessionFinished("Session finished", "ProxySession")
 	return nil
-
 }
+
 func (c *CWLRecorder) Write(data []byte) error {
 	// if c.logBuffer == nil {
 	// 	c.logBuffer = bytes.NewBuffer(data)
@@ -44,7 +40,8 @@ func (c *CWLRecorder) Write(data []byte) error {
 	// }
 	// s := c.logBuffer.String()
 	// fmt.Printf(string(data))
-	c.Logger.Log(time.Now(), string(data))
+	c.Logger.LogInfo(string(data), "CWLRecorder.Write")
+
 	// c.logBuffer.Truncate(0)
 
 	return nil
