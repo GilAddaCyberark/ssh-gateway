@@ -1,20 +1,11 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"log"
-	"sync"
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
-	"github.com/aws/aws-sdk-go/aws/session"
-
-	"ssh-gateway/cw_logger"
-	"ssh-gateway/aws_workers"
 )
 
 type RelayInfo struct {
@@ -34,34 +25,10 @@ func NewRelay(TargetInfo *TargetInfo, RelayInfo *RelayInfo) (SSHRelay, error) {
 	return relay, nil
 }
 
-// NewRelay Channel...This is a CTOR of a new relay channel
-func (r *SSHRelay) NewRelayChannel(startTime time.Time, channel ssh.Channel, username string) *RelayChannel {
-
-	enableAws := true
-	logger, err := cwlogger.New(&cwlogger.Config{
-	    LogGroupName: "GolangGroupName",
-	    Client: cloudwatchlogs.New(session.New(), &aws.Config{Region: aws.String(aws_helpers.DEFAULT_REGION)}),
-	  })
-	
-	  if err != nil {
-		fmt.Printf("Cannot open cloud watch log group: %v\n", err)
-		enableAws = false
-	}
-
-	return &RelayChannel{
-		StartTime:     startTime,
-		UserName:      username,
-		SourceChannel: channel,
-		initialBuffer: bytes.NewBuffer([]byte{}),
-		logMutex:      &sync.Mutex{},
-		enableAwsLogs: enableAws,
-		logger: logger,
-	}
-}
-
 func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, srvNewChannel ssh.NewChannel, chans <-chan ssh.NewChannel) error {
 
-	srvChannel, srvReqs, err := srvNewChannel.Accept()
+	// Accept Connection
+	sourceChannel, sourceRequests, err := srvNewChannel.Accept()
 	if err != nil {
 		log.Printf("Session is not accepted, abort...")
 		// todo : find more resources needed to close
@@ -71,8 +38,6 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	defer sshConn.Close()
 
 	// todo : replace with audit server
-
-	relayChannel := r.NewRelayChannel(startTime, srvChannel, sshConn.User())
 
 	// Handle all incoming channel requests
 	go func() {
@@ -87,20 +52,14 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	}()
 
 	// Proxy the channel and its requests
-	var agentForwarding bool = false
-	maskedReqs := make(chan *ssh.Request, 5)
+	//var agentForwarding bool = false
+	sourceMaskedReqs := make(chan *ssh.Request, 5)
 	go func() {
-		// For the pty-req and shell request types, we have to reply to those right away.
-		// This is for PuTTy compatibility - if we don't, it won't allow any input.
-		// We also have to change them to WantReply = false,
-		// or a double reply will cause a fatal error client side.
-		for req := range srvReqs {
-
+		// todo : Check why do we need those requests masking
+		for req := range sourceRequests {
 			// todo - replace that logging with audit server..
-
-			// relayChannel.LogRequest(req)
 			if req.Type == "auth-agent-req@openssh.com" {
-				agentForwarding = true
+				// agentForwarding = true
 				if req.WantReply {
 					req.Reply(true, []byte{})
 				}
@@ -112,27 +71,21 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 				req.Reply(true, []byte{})
 				req.WantReply = false
 			}
-			maskedReqs <- req
+			sourceMaskedReqs <- req
 		}
 	}()
 
-	// Set the window header to SSH Relay login.
-	fmt.Fprintf(relayChannel, "%s]0;SSH Bastion Relay Login%s", []byte{27}, []byte{7})
+	// Set Recorders
+	fr := NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
+	recorders := []Recorder{fr}
 
-	err = relayChannel.SyncToFile(dialerConfig.DefaultTargetAddress, r.RelayInfo.RecordingsDir)
-	if err != nil {
-		fmt.Fprintf(relayChannel, "Failed to Initialize Session.\r\n")
-		relayChannel.Close()
-		return err
-	}
-
-	// Dial To target, get target and open session
+	// Dial to Target
 	dialer, err := NewDialer(r.RelayTargetInfo)
 	if err != nil {
-		fmt.Fprintf(relayChannel, "Failed to Initialize Session.\r\n")
+		fmt.Fprintf(sourceChannel, "Failed to Initialize Session.\r\n")
 		return err
 	}
-	client, err := dialer.connectToTarget(relayChannel)
+	client, err := dialer.connectToTarget(sourceChannel)
 	if err != nil {
 		if client != nil {
 			client.Close()
@@ -145,63 +98,14 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		defer client.Close()
 
 	}
-	channel2, reqs2, err := client.OpenChannel("session", []byte{})
+	destChannel, destRequests, err := client.OpenChannel("session", []byte{})
 	if err != nil {
-		fmt.Fprintf(relayChannel, "Remote session setup failed: %v\r\n", err)
-		relayChannel.Close()
+		fmt.Fprintf(sourceChannel, "Remote session setup failed: %v\r\n", err)
+		sourceChannel.Close()
 		return err
 	}
 	log.Printf("Starting session proxy...")
-	r.proxy(maskedReqs, reqs2, relayChannel, channel2)
-
+	// Start Recordig
+	InitRecording(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests, &recorders)
 	return nil
-
-}
-
-func (r *SSHRelay) proxy(reqs1, reqs2 <-chan *ssh.Request, channel1 *RelayChannel, channel2 ssh.Channel) {
-	var closer sync.Once
-	closeFunc := func() {
-		channel1.Close()
-		channel2.Close()
-	}
-
-	defer closer.Do(closeFunc)
-
-	closerChan := make(chan bool, 1)
-
-	// From remote, to client.
-	go func() {
-		io.Copy(channel1, channel2)
-		closerChan <- true
-	}()
-
-	go func() {
-		io.Copy(channel2, channel1)
-		closerChan <- true
-	}()
-
-	for {
-		select {
-		case req := <-reqs1:
-			if req == nil {
-				return
-			}
-			b, err := channel2.SendRequest(req.Type, req.WantReply, req.Payload)
-			if err != nil {
-				return
-			}
-			req.Reply(b, nil)
-		case req := <-reqs2:
-			if req == nil {
-				return
-			}
-			b, err := channel1.SendRequest(req.Type, req.WantReply, req.Payload)
-			if err != nil {
-				return
-			}
-			req.Reply(b, nil)
-		case <-closerChan:
-			return
-		}
-	}
 }

@@ -84,7 +84,7 @@ func (d *SSHDialer) GetJITSSHClientConfig() (*ssh.ClientConfig, error) {
 	return clientConfig, nil
 }
 
-func (d *SSHDialer) connectToTarget(relayChannel *RelayChannel) (*ssh.Client, error) {
+func (d *SSHDialer) connectToTarget(relayChannel ssh.Channel) (*ssh.Client, error) {
 	var clientConfig *ssh.ClientConfig
 	var err error
 

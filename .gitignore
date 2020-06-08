@@ -11,6 +11,7 @@ config.code-workspace
 ssh-gateway
 ssh_host_rsa_key
 config.json
+recordings/*
 
 # Test binary, built with `go test -c`
 *.test
