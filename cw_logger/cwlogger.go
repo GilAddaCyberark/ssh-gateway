@@ -15,7 +15,10 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 
 	aws_helpers "ssh-gateway/aws_workers"
+	"ssh-gateway/ssh-engine/generic-structs"
 )
+
+const logGroupName = "SSH_Gateway_Logs"
 
 type LogRequestDto struct {
 	TenantId          string            `json:"tenant"`
@@ -59,6 +62,7 @@ type Logger struct {
 	done          chan bool
 	errorReporter func(err error)
 	retention     int
+	targetInfo    generic_structs.TargetInfo
 }
 
 // New creates a new Logger.

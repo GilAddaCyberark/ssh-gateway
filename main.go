@@ -6,27 +6,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+
+	rec "ssh-gateway/recorders"
+	eng "ssh-gateway/ssh-engine"
+	gen "ssh-gateway/ssh-engine/generic-structs"
 )
-
-// todo : move to config class
-
-type ConfigGlobal struct {
-	Server ServerConfig
-	Dialer DialerConfig
-}
-
-const (
-	FileNotFoundExitCode int = 1
-)
-
-var globalConfig *ConfigGlobal
-var serverConfig *ServerConfig
-var dialerConfig *DialerConfig
-
-var configFilePath *string
-var listeningPort *int
-var enableRecording *bool
-var recordingDir *string
 
 func init() {
 	// Init Flags
@@ -44,55 +28,60 @@ func main() {
 	setConfig()
 
 	// Set new SSH Server to listen to new incoming connections
-	s := SSHGateway{}
-	s.listeningPort = *listeningPort
-	s.TargetInfo = &TargetInfo{}
-	s.RelayInfo = &RelayInfo{}
-	s.RelayInfo.EnableRecording = *enableRecording
-	s.RelayInfo.RecordingsDir = *recordingDir
+	s := eng.SSHGateway{}
+	s.ListeningPort = *eng.ListeningPort
+	s.TargetInfo = &gen.TargetInfo{}
+	s.RelayInfo = &eng.RelayInfo{}
+	s.RelayInfo.EnableRecording = *rec.EnableRecording
+	s.RelayInfo.RecordingsDir = *rec.RecordingDir
 
 	if s.NewSSHGateway() != nil {
 		panic("SSH Gatweay could not start")
 	}
-	s.ListenAndServe()
+
+	err := s.ListenAndServe()
+	if err != nil {
+		fmt.Printf("ListenAndServe error: %v\n", err)
+		return
+	}
+
 }
 func setConfig() {
 	// load configuration
 	config, err := loadConfig()
 	if err != nil {
 		fmt.Printf("Load Configuration error: %v\n", err)
-		os.Exit(FileNotFoundExitCode)
+		os.Exit(eng.FileNotFoundExitCode)
 	}
 
-	serverConfig = &config.Server
-	dialerConfig = &config.Dialer
+	eng.Server_Config = &config.Server
+	eng.Dialer_Config = &config.Dialer
 	// relayConfig = &config.Relay
 }
 
-func loadConfig() (*ConfigGlobal, error) {
+func loadConfig() (*eng.ConfigGlobal, error) {
 	// Print File
-	fmt.Println(configFilePath)
+	fmt.Println(eng.ConfigFilePath)
 
 	// todo: Check if files exists
-	if fileExists(*configFilePath) {
+	if fileExists(*eng.ConfigFilePath) {
 		// Read File
-		configData, err := ioutil.ReadFile(*configFilePath)
+		configData, err := ioutil.ReadFile(*eng.ConfigFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to open config file: %s", err)
 		}
 		// Unmarshal json
-		config := &ConfigGlobal{}
+		config := &eng.ConfigGlobal{}
 		err = json.Unmarshal(configData, config)
 		if err != nil {
 			return nil, fmt.Errorf("Unable to unmarhal json config file: %s", err)
 		}
 		return config, nil
 
-	} else {
-		err := fmt.Errorf("Config file not found: %s", *configFilePath)
-		return nil, err
 	}
-	return nil, fmt.Errorf("Unexpected error with json config file: %s", configFilePath)
+
+	err := fmt.Errorf("Config file not found: %s", *eng.ConfigFilePath)
+	return nil, err
 }
 
 func fileExists(filename string) bool {
@@ -108,10 +97,10 @@ func fileExists(filename string) bool {
 // *********************************
 func printRuntimeArgs() {
 	fmt.Println("SSH Gateway Running")
-	fmt.Printf("Configuration File: %s\n", *configFilePath)
-	fmt.Printf("SSH Gateway Listening Port: %d\n", *listeningPort)
-	fmt.Printf("Session Recording Enabled: %s\n", *enableRecording)
-	fmt.Printf("Session Recording Dir: %s\n", *recordingDir)
+	fmt.Printf("Configuration File: %s\n", *eng.ConfigFilePath)
+	fmt.Printf("SSH Gateway Listening Port: %d\n", *eng.ListeningPort)
+	fmt.Printf("Session Recording Enabled: %t\n", *rec.EnableRecording)
+	fmt.Printf("Session Recording Dir: %s\n", *rec.RecordingDir)
 }
 
 func setCommandLineArgs() {
@@ -129,10 +118,10 @@ func setCommandLineArgs() {
 			"---------------------------\n"
 	)
 
-	configFilePath = flag.String("cfg", defaultConfigurtionFile, "The path of the ssh-gateway configuration file")
-	listeningPort = flag.Int("port", defaultListentingPort, "The port that the ssh gateway is listening to client connections")
-	recordingDir = flag.String("rec-path", defaultRecordingDir, "The path of the session recording dir")
-	enableRecording = flag.Bool("rec", defaultEnableRecording, "To enable the recording of the client sessions. The value is true / false")
+	eng.ConfigFilePath = flag.String("cfg", defaultConfigurtionFile, "The path of the ssh-gateway configuration file")
+	eng.ListeningPort = flag.Int("port", defaultListentingPort, "The port that the ssh gateway is listening to client connections")
+	rec.RecordingDir = flag.String("rec-path", defaultRecordingDir, "The path of the session recording dir")
+	rec.EnableRecording = flag.Bool("rec", defaultEnableRecording, "To enable the recording of the client sessions. The value is true / false")
 	flag.Usage = func() {
 		fmt.Printf(logo)
 		fmt.Printf("Usage: ssh-gateway [options] param>\n\n")

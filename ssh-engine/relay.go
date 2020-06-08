@@ -1,9 +1,12 @@
-package main
+package ssh_engine
 
 import (
 	"fmt"
 	"log"
 	"time"
+
+	rec "ssh-gateway/recorders"
+	generic_structs "ssh-gateway/ssh-engine/generic-structs"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -14,14 +17,14 @@ type RelayInfo struct {
 }
 
 type SSHRelay struct {
-	RelayTargetInfo *TargetInfo
+	RelayTargetInfo *generic_structs.TargetInfo
 	RelayInfo       *RelayInfo
 }
 
-func NewRelay(TargetInfo *TargetInfo, RelayInfo *RelayInfo) (SSHRelay, error) {
+func NewRelay(targetInfo *generic_structs.TargetInfo, relayInfo *RelayInfo) (SSHRelay, error) {
 	relay := SSHRelay{}
-	relay.RelayTargetInfo = TargetInfo
-	relay.RelayInfo = RelayInfo
+	relay.RelayTargetInfo = targetInfo
+	relay.RelayInfo = relayInfo
 	return relay, nil
 }
 
@@ -80,12 +83,12 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	}()
 
 	// Set Recorders
-	fr := NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
-	cwlRecorder, err := NewCWLRecorder()
+	fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
+	cwlRecorder, err := rec.NewCWLRecorder()
 	if err != nil {
 		return err
 	}
-	recorders := []Recorder{fr, cwlRecorder}
+	recorders := []rec.Recorder{fr, cwlRecorder}
 
 	// Dial to Target
 	dialer, err := NewDialer(r.RelayTargetInfo)
@@ -116,7 +119,7 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	// Start Recordig
 	// Log session start
 	// relayChannel.Logger.SessionStarted("Session started: "+relayChannel.SessionId, "ProxySession")
-	InitRecording(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests, &recorders)
+	rec.InitRecording(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests, &recorders)
 	// Log Session Close
 	// Log.Sesso...
 	return nil

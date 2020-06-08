@@ -1,4 +1,4 @@
-package main
+package recorders
 
 import (
 	"bytes"
@@ -6,17 +6,19 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"ssh-gateway/ssh-engine/generic-structs"
 )
 
 type FileRecorder struct {
-	targetInfo    TargetInfo
+	targetInfo    generic_structs.TargetInfo
 	recordingDir  string
 	fd            *os.File
 	initialBuffer *bytes.Buffer
 	fileMutex     *sync.Mutex
 }
 
-func NewFileRecorder(targetInfo TargetInfo, recordingDir string) *FileRecorder {
+func NewFileRecorder(targetInfo generic_structs.TargetInfo, recordingDir string) *FileRecorder {
 	fr := FileRecorder{}
 	fr.recordingDir = recordingDir
 	fr.targetInfo = targetInfo
@@ -29,7 +31,7 @@ func (fr *FileRecorder) Init() error {
 	var startTime time.Time
 
 	startTime = time.Now()
-	filepath := fmt.Sprintf("%s/%d/%d", *recordingDir, startTime.Year(), startTime.Month())
+	filepath := fmt.Sprintf("%s/%d/%d", *RecordingDir, startTime.Year(), startTime.Month())
 	err = os.MkdirAll(filepath, 0750)
 	if err != nil {
 		return fmt.Errorf("Unable to create required log directory (%s): %s", filepath, err)
