@@ -6,7 +6,7 @@ import (
 	"time"
 
 	rec "ssh-gateway/recorders"
-	generic_structs "ssh-gateway/ssh-engine/generic-structs"
+	gen "ssh-gateway/ssh-engine/generic-structs"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -17,11 +17,11 @@ type RelayInfo struct {
 }
 
 type SSHRelay struct {
-	RelayTargetInfo *generic_structs.TargetInfo
+	RelayTargetInfo *gen.TargetInfo
 	RelayInfo       *RelayInfo
 }
 
-func NewRelay(targetInfo *generic_structs.TargetInfo, relayInfo *RelayInfo) (SSHRelay, error) {
+func NewRelay(targetInfo *gen.TargetInfo, relayInfo *RelayInfo) (SSHRelay, error) {
 	relay := SSHRelay{}
 	relay.RelayTargetInfo = targetInfo
 	relay.RelayInfo = relayInfo
@@ -83,13 +83,21 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	}()
 
 	// Set Recorders
+	// fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
+	// cwlRecorder, err := rec.NewCWLRecorder()
+	// if err != nil {
+	// 	return err
+	// }
+	// recorders := []rec.Recorder{fr, cwlRecorder}
+	// // recorders := []rec.Recorder{cwlRecorder}
+
+	// Set Recorders
 	fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
-	cwlRecorder, err := rec.NewCWLRecorder()
+	cwlRecorder, err := rec.NewCWLRecorder(r.RelayTargetInfo)
 	if err != nil {
 		return err
 	}
 	recorders := []rec.Recorder{fr, cwlRecorder}
-	// recorders := []rec.Recorder{cwlRecorder}
 
 	// Dial to Target
 	dialer, err := NewDialer(r.RelayTargetInfo)
@@ -110,6 +118,7 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		defer client.Close()
 
 	}
+
 	destChannel, destRequests, err := client.OpenChannel("session", []byte{})
 	if err != nil {
 		fmt.Fprintf(sourceChannel, "Remote session setup failed: %v\r\n", err)
@@ -117,11 +126,6 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		return err
 	}
 	log.Printf("Starting session proxy...")
-	// Start Recordig
-	// Log session start
-	// relayChannel.Logger.SessionStarted("Session started: "+relayChannel.SessionId, "ProxySession")
 	rec.InitRecording(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests, &recorders)
-	// Log Session Close
-	// Log.Sesso...
 	return nil
 }

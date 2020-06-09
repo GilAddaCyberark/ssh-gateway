@@ -1,7 +1,6 @@
 package cwlogger
 
 const (
-	errCodeDataAlreadyAcceptedException  = "DataAlreadyAcceptedException"
 	errCodeInvalidSequenceTokenException = "InvalidSequenceTokenException"
 	errCodeThrottlingException           = "ThrottlingException"
 	errCodeInternalFailure               = "InternalFailure"

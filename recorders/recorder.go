@@ -34,6 +34,11 @@ func InitRecording(
 	defer func() {
 		destPC.Close()
 		sourcePC.Close()
+		if recorders != nil {
+			for _, recorder := range *recorders {
+				recorder.Close()
+			}
+		}
 	}()
 
 	stopSignalChannel := make(chan bool, 1)
