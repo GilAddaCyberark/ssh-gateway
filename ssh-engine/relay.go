@@ -89,6 +89,7 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		return err
 	}
 	recorders := []rec.Recorder{fr, cwlRecorder}
+	// recorders := []rec.Recorder{cwlRecorder}
 
 	// Dial to Target
 	dialer, err := NewDialer(r.RelayTargetInfo)

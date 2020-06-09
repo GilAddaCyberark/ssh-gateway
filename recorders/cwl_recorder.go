@@ -27,6 +27,9 @@ func NewCWLRecorder() (*CWLRecorder, error) {
 		return nil, err
 	}
 	cwl.Logger = logger
+	buf := make([]byte, 0, 0)
+	cwl.logBuffer = bytes.NewBuffer(buf)
+
 	return &cwl, nil
 }
 func (c *CWLRecorder) Init() error {
@@ -36,16 +39,14 @@ func (c *CWLRecorder) Close() error {
 	return nil
 
 }
-func (c *CWLRecorder) Write(data []byte) error {
-	// if c.logBuffer == nil {
-	// 	c.logBuffer = bytes.NewBuffer(data)
-	// } else {
-	// 	c.logBuffer.Write(data)
-	// }
-	// s := c.logBuffer.String()
-	// fmt.Printf(string(data))
-	c.Logger.Log(time.Now(), string(data))
-	// c.logBuffer.Truncate(0)
+func (c *CWLRecorder) Write(data []byte, isClientInput bool) error {
+	c.logBuffer.Write(data)
+	// Flush buffer in case of white spaces found in the end
+	if bytes.ContainsAny(data[len(data)-1:], "\r\n ") {
+		c.Logger.Log(time.Now(), c.logBuffer.String())
+		// fmt.Printf("\n<-> from rec: \n%s", c.logBuffer.String())
+		c.logBuffer.Truncate(0)
+	}
 
 	return nil
 

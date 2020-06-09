@@ -10,7 +10,7 @@ import (
 type Recorder interface {
 	Init() error
 	Close() error
-	Write(data []byte) error
+	Write(data []byte, isClientInput bool) error
 }
 
 func InitRecording(
@@ -27,8 +27,8 @@ func InitRecording(
 		}
 	}
 
-	destPC := NewPipedChannel(*destChannel, recorders)
-	sourcePC := NewPipedChannel(sourceChannel, recorders)
+	sourcePC := NewPipedChannel(false, sourceChannel, recorders) // note that write direction is inverse
+	destPC := NewPipedChannel(true, *destChannel, recorders)
 
 	// defer closer.Do(closeFunc)
 	defer func() {
@@ -41,11 +41,14 @@ func InitRecording(
 	// Copy from Source <--> Destination
 	go func() {
 		io.Copy(sourcePC, destPC)
+		// io.Copy(sourcePC, *destChannel)
 		stopSignalChannel <- true
 	}()
 
 	go func() {
 		io.Copy(destPC, sourcePC)
+		// io.Copy(*destChannel, sourcePC)
+
 		stopSignalChannel <- true
 	}()
 
@@ -82,12 +85,14 @@ func InitRecording(
 type PipedChannel struct {
 	parentChannel ssh.Channel
 	recorders     *[]Recorder
+	isFromClient  bool
 }
 
-func NewPipedChannel(sourceChannel ssh.Channel, recorders *[]Recorder) PipedChannel {
+func NewPipedChannel(isFromClient bool, sourceChannel ssh.Channel, recorders *[]Recorder) PipedChannel {
 	p := PipedChannel{}
 	p.recorders = recorders
 	p.parentChannel = sourceChannel
+	p.isFromClient = isFromClient
 	return p
 }
 
@@ -101,17 +106,17 @@ func (p PipedChannel) CloseWrite() error {
 func (p PipedChannel) Read(data []byte) (int, error) {
 
 	n, res := p.parentChannel.Read(data)
-	// fmt.Printf("<%c", res)
+	// Write to Recorders
+	if p.recorders != nil && p.isFromClient {
+		// fmt.Printf("\n--> from read: %s|%v", p.isFromClient, string(data[:n]))
+		for _, recorder := range *p.recorders {
+			recorder.Write(data[:n], p.isFromClient)
+		}
+	}
 	return n, res
 }
 
 func (p PipedChannel) Write(data []byte) (int, error) {
-	// fmt.Printf(">%c", data)
-	if p.recorders != nil {
-		for _, recorder := range *p.recorders {
-			recorder.Write(data)
-		}
-	}
 	n, err := p.parentChannel.Write(data)
 	return n, err
 }
