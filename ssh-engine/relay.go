@@ -82,23 +82,6 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		}
 	}()
 
-	// Set Recorders
-	// fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
-	// cwlRecorder, err := rec.NewCWLRecorder()
-	// if err != nil {
-	// 	return err
-	// }
-	// recorders := []rec.Recorder{fr, cwlRecorder}
-	// // recorders := []rec.Recorder{cwlRecorder}
-
-	// Set Recorders
-	fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
-	cwlRecorder, err := rec.NewCWLRecorder(r.RelayTargetInfo)
-	if err != nil {
-		return err
-	}
-	recorders := []rec.Recorder{fr, cwlRecorder}
-
 	// Dial to Target
 	dialer, err := NewDialer(r.RelayTargetInfo)
 	if err != nil {
@@ -126,6 +109,13 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		return err
 	}
 	log.Printf("Starting session proxy...")
+	// Set Recorders
+	fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
+	cwlRecorder, err := rec.NewCWLRecorder(r.RelayTargetInfo)
+	if err != nil {
+		return err
+	}
+	recorders := []rec.Recorder{fr, cwlRecorder}
 	rec.InitRecording(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests, &recorders)
 	return nil
 }
