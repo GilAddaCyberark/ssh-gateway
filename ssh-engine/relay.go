@@ -108,7 +108,7 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		sourceChannel.Close()
 		return err
 	}
-	log.Printf("Starting session proxy...")
+
 	// Set Recorders
 	fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
 	cwlRecorder, err := rec.NewCWLRecorder(r.RelayTargetInfo)

@@ -15,3 +15,5 @@ var Dialer_Config *DialerConfig
 
 var ConfigFilePath *string
 var ListeningPort *int
+
+var Session_Manager SessionManager = *NewSessionManager()

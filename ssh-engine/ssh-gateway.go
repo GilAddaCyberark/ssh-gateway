@@ -9,19 +9,16 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 	"time"
 
-	guuid "github.com/google/uuid"
 	"golang.org/x/crypto/ssh"
 
 	aws_helpers "ssh-gateway/aws_workers"
-	generic_structs "ssh-gateway/ssh-engine/generic-structs"
+	gen "ssh-gateway/ssh-engine/generic-structs"
 )
 
 const SERVER_VERSION = "SSH-2.0-EVEREST-SSH-GW"
-const AWS_PROVIDER_PREFIX = "aws"
 
 var context *ServerContext
 
@@ -39,9 +36,6 @@ type ServerConfig struct {
 
 type SSHGateway struct {
 	SshConfig     *ssh.ServerConfig
-	PersonalUser  string
-	PersonalPass  []byte
-	TargetInfo    *generic_structs.TargetInfo
 	RelayInfo     *RelayInfo
 	ListeningPort int
 	// Set Global Gateway Logger
@@ -57,30 +51,24 @@ func (s *SSHGateway) NewSSHGateway() error {
 		ServerVersion: SERVER_VERSION,
 		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
 			// todo : implement password check , user check & other auth methods
-			err := s.ParsePSMSyntaxUser(c.User())
+			bastionUser, targetUser, err := s.getTargetUser(c.User())
 			if err != nil {
 				return nil, err
 			}
 
-			if pass != nil {
-				s.PersonalPass = pass
-			} else {
-				log.Println("Np Password Received")
-			}
 			perms := &ssh.Permissions{
 				Extensions: map[string]string{
-					"user_id": s.TargetInfo.TargetUser,
+					"user_id": targetUser,
 				},
 			}
 
-			log.Printf("Authentiated to IDP with user: %s ,pass :%s\n", s.PersonalUser, s.PersonalPass)
+			log.Printf("Authentiated to IDP with user: %s...\n", bastionUser)
 			return perms, nil
 		},
 		BannerCallback: func(c ssh.ConnMetadata) string {
 			return "Welcome to SSH Gateway"
 		},
 	}
-	s.TargetInfo = &generic_structs.TargetInfo{}
 
 	// Add Server Keys
 
@@ -102,63 +90,13 @@ func (s *SSHGateway) NewSSHGateway() error {
 	return nil
 }
 
-func (s *SSHGateway) ParsePSMSyntaxUser(user string) error {
-	// Parsing the target info from the ssh user format
-	//ssh personal_user@target_user@target_address@ssh_gw_address
-	var err error = nil
-	s.TargetInfo.SessionId = guuid.New().String()
-	s.TargetInfo.TargetPort = 22
-	s.TargetInfo.TargetAddress = ""
-	s.TargetInfo.TargetId = ""
-	s.TargetInfo.TargetProvider = ""
+func (s *SSHGateway) getTargetUser(user string) (string, string, error) {
 
 	parts := strings.Split(user, "@")
 	if len(parts) < 3 {
-		return fmt.Errorf("Unsupported user format: %s, cannot be parsed into personal user, target, port ")
+		return "", "", fmt.Errorf("Unsupported user format: %s, cannot be parsed into personal user, target, port ", user)
 	}
-	s.PersonalUser = parts[0]
-	s.TargetInfo.TargetUser = parts[1]
-	s.TargetInfo.TargetAddress = parts[2]
-	s.TargetInfo.AuthType = "pass"
-
-	// Handle Address
-	if len(parts[2]) > 0 {
-		// Split to port and address
-		if strings.Contains(s.TargetInfo.TargetAddress, ":") {
-			portParts := strings.Split(parts[2], ":")
-			s.TargetInfo.TargetAddress = portParts[0]
-			s.TargetInfo.TargetPort, err = strconv.Atoi(portParts[1])
-			if err != nil {
-				return fmt.Errorf("Error")
-			}
-		}
-		// Set Provider (Amazon, gcp, azure) , Remove  Prefix from target address
-		instanceParts := strings.Split(s.TargetInfo.TargetAddress, "#")
-		if len(instanceParts) > 1 {
-			if instanceParts[0] == AWS_PROVIDER_PREFIX {
-				s.TargetInfo.TargetAddress = instanceParts[1]
-				s.TargetInfo.TargetProvider = AWS_PROVIDER_PREFIX
-			} else {
-				return fmt.Errorf("Unidentofied cloud provider %s", instanceParts[0])
-			}
-		}
-
-		// Handle AWS Instance id or an IP Address
-		if strings.HasPrefix(s.TargetInfo.TargetAddress, "i-") {
-			s.TargetInfo.TargetId = s.TargetInfo.TargetAddress
-			s.TargetInfo.TargetAddress = ""
-			s.TargetInfo.AuthType = "cert"
-		}
-	}
-
-	if len(parts) > 3 {
-		s.TargetInfo.TargetPort, err = strconv.Atoi(parts[3])
-		if err != nil {
-			return fmt.Errorf("Part of port exists, cannot be splited to port ")
-		}
-		// todo: Check that port and ip address are valid
-	}
-	return nil
+	return parts[0], parts[1], nil
 }
 
 func (s *SSHGateway) ListenAndServe() error {
@@ -207,11 +145,23 @@ func (s *SSHGateway) HandleConn(c net.Conn) {
 
 	switch srvChannel.ChannelType() {
 	case "session":
-		relay, err := NewRelay(s.TargetInfo, s.RelayInfo)
+		connStr := srvConn.User()
+		ti, err := gen.GetTargetInfoByConnectionString(connStr)
 		if err != nil {
 			return
 		}
+
+		relay, err := NewRelay(ti, s.RelayInfo)
+		if err != nil {
+			return
+		}
+		Session_Manager.AddNewSession(&relay)
+		log.Printf("After AddSession: %d\n", Session_Manager.GetOpenSessionsCount())
+
 		relay.ProxySession(startTime, srvConn, srvChannel, chans)
+		
+		Session_Manager.RemoveSession(&relay)
+		fmt.Printf("After RemoveSession: %d\n", Session_Manager.GetOpenSessionsCount())
 	default:
 		log.Printf("Chqnnel Type Unsupported: %s Connection Rejected", srvChannel.ChannelType())
 		srvChannel.Reject(ssh.UnknownChannelType, "connection flow not supported, only interactive sessions are permitted.")

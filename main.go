@@ -9,7 +9,6 @@ import (
 
 	rec "ssh-gateway/recorders"
 	eng "ssh-gateway/ssh-engine"
-	gen "ssh-gateway/ssh-engine/generic-structs"
 )
 
 func init() {
@@ -30,7 +29,6 @@ func main() {
 	// Set new SSH Server to listen to new incoming connections
 	s := eng.SSHGateway{}
 	s.ListeningPort = *eng.ListeningPort
-	s.TargetInfo = &gen.TargetInfo{}
 	s.RelayInfo = &eng.RelayInfo{}
 	s.RelayInfo.EnableRecording = *rec.EnableRecording
 	s.RelayInfo.RecordingsDir = *rec.RecordingDir

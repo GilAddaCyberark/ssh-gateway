@@ -138,6 +138,5 @@ func (d *SSHDialer) connectToTarget(relayChannel ssh.Channel) (*ssh.Client, erro
 
 	fmt.Fprintf(relayChannel, "Connection established to : %v\r\n", remoteHost)
 
-	log.Printf("Starting session proxy...")
 	return client, err
 }
