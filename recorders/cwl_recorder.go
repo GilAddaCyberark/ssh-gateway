@@ -19,7 +19,7 @@ func NewCWLRecorder(targetInfo *gen.TargetInfo) (*CWLRecorder, error) {
 		return nil, err
 	}
 	cwl.Logger = logger
-	buf := make([]byte, 0, 0)
+	buf := make([]byte, 0)
 	cwl.logBuffer = bytes.NewBuffer(buf)
 	cwl.Logger.SessionStarted("Session Status", "NewCWLRecorder")
 
@@ -31,13 +31,14 @@ func (c *CWLRecorder) Init() error {
 }
 func (c *CWLRecorder) Close() error {
 	c.Logger.SessionFinished("Session Status", "ProxySession")
+	c.Logger.Close()
 	return nil
 }
 func (c *CWLRecorder) Write(data []byte, isClientInput bool) error {
 	c.logBuffer.Write(data)
 	// Flush buffer in case of white spaces found in the end
 	// todo : handle empry data
-	if data != nil && len(data) > 0 {
+	if len(data) > 0 {
 		if bytes.ContainsAny(data[len(data)-1:], "\r\n ") {
 			c.Logger.LogInfo(c.logBuffer.String(), "CWLRecorder.Write") // Dima - is it needed?
 			// fmt.Printf("\n<-> from rec: \n%s", c.logBuffer.String())

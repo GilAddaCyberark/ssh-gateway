@@ -39,6 +39,7 @@ func InitRecording(
 				recorder.Close()
 			}
 		}
+		recorders = nil
 	}()
 
 	stopSignalChannel := make(chan bool, 1)
@@ -127,12 +128,6 @@ func (p PipedChannel) Write(data []byte) (int, error) {
 }
 
 func (p PipedChannel) Close() error {
-
-	if p.recorders != nil {
-		for _, recorder := range *p.recorders {
-			recorder.Close()
-		}
-	}
 	return p.parentChannel.Close()
 }
 
