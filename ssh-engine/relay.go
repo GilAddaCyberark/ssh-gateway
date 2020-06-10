@@ -28,7 +28,7 @@ func NewRelay(targetInfo *gen.TargetInfo, relayInfo *RelayInfo) (SSHRelay, error
 	return relay, nil
 }
 
-func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, srvNewChannel ssh.NewChannel, chans <-chan ssh.NewChannel) error {
+func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, srvNewChannel ssh.NewChannel) error {
 
 	// Set Session ID + New Logger per session
 	// sessionId :=  guuid.New().String()
@@ -45,18 +45,6 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	defer sshConn.Close()
 
 	// todo : replace with audit server
-
-	// Handle all incoming channel requests
-	go func() {
-		for srvNewChannel = range chans {
-			if srvNewChannel == nil {
-				return
-			}
-
-			srvNewChannel.Reject(ssh.Prohibited, "remote server denied channel request")
-			continue
-		}
-	}()
 
 	// Proxy the channel and its requests
 	//var agentForwarding bool = false
