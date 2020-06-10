@@ -1,10 +1,6 @@
 package ssh_engine
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,13 +10,15 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	aws_helpers "ssh-gateway/aws_workers"
+	cfg "ssh-gateway/ssh-engine/config"
 	gen "ssh-gateway/ssh-engine/generic-structs"
 )
 
 const SERVER_VERSION = "SSH-2.0-EVEREST-SSH-GW"
+const KEY_BITS = 4096
 
 var context *ServerContext
+var Session_Manager SessionManager = *NewSessionManager()
 
 type ServerContext struct {
 	ServerSigner    ssh.Signer
@@ -28,24 +26,21 @@ type ServerContext struct {
 	TenantId        string
 }
 
-type ServerConfig struct {
-	ServerAddress string
-	ServerKeyPath string
-	User          string
-}
-
 type SSHGateway struct {
 	SshConfig     *ssh.ServerConfig
 	RelayInfo     *RelayInfo
 	ListeningPort int
+	Config        *cfg.ServerConfig
+	AWSConfig     *cfg.AWSConfig
 	// Set Global Gateway Logger
 }
 
 // Create the configuration of a new server and start it
 func (s *SSHGateway) NewSSHGateway() error {
+	s.Config = cfg.Server_Config
 	context = &ServerContext{}
-	context.TenantId = aws_helpers.TENANT_ID
-	serverConfig := &ssh.ServerConfig{
+	context.TenantId = cfg.AWS_Config.TenantId
+	sshServerConfig := &ssh.ServerConfig{
 		NoClientAuth:  false,
 		MaxAuthTries:  1,
 		ServerVersion: SERVER_VERSION,
@@ -72,16 +67,16 @@ func (s *SSHGateway) NewSSHGateway() error {
 
 	// Add Server Keys
 
-	signer, err := GetServerSigner()
+	signer, err := s.GetServerSigner()
 	if err != nil {
 		return fmt.Errorf("Invalid SSH Signer")
 	}
 	context.ServerSigner = signer
-	serverConfig.AddHostKey(context.ServerSigner)
-	s.SshConfig = serverConfig
+	sshServerConfig.AddHostKey(context.ServerSigner)
+	s.SshConfig = sshServerConfig
 
 	// Get Public Key
-	publicKey, err := GetServerPublicKey()
+	publicKey, err := s.GetServerPublicKey()
 	if err != nil {
 		return fmt.Errorf("Invalid SSH Public Key")
 	}
@@ -159,7 +154,7 @@ func (s *SSHGateway) HandleConn(c net.Conn) {
 		log.Printf("After AddSession: %d\n", Session_Manager.GetOpenSessionsCount())
 
 		relay.ProxySession(startTime, srvConn, srvChannel, chans)
-		
+
 		Session_Manager.RemoveSession(&relay)
 		fmt.Printf("After RemoveSession: %d\n", Session_Manager.GetOpenSessionsCount())
 	default:
@@ -171,95 +166,26 @@ func (s *SSHGateway) HandleConn(c net.Conn) {
 	srvConn.Close()
 }
 
-func generateKeyPair() (*rsa.PrivateKey, []byte, error) {
-	const bitSize = 4096
-	var err error
-
-	privateKey, err := generatePrivateKey(bitSize)
+func (s SSHGateway) GetServerSigner() (ssh.Signer, error) {
+	key, err := ioutil.ReadFile(s.Config.PrivateKeyPath)
 	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	publicKeyBytes, err := generatePublicKey(&privateKey.PublicKey)
-	if err != nil {
-		log.Fatal(err.Error())
-	}
-
-	return privateKey, publicKeyBytes, err
-
-}
-
-// generatePrivateKey creates a RSA Private Key of specified byte size
-func generatePrivateKey(bitSize int) (*rsa.PrivateKey, error) {
-	// Private Key generation
-	privateKey, err := rsa.GenerateKey(rand.Reader, bitSize)
-	if err != nil {
-		return nil, err
-	}
-
-	// Validate Private Key
-	err = privateKey.Validate()
-	if err != nil {
-		return nil, err
-	}
-
-	log.Println("Private Key generated")
-	return privateKey, nil
-}
-
-// generatePublicKey take a rsa.PublicKey and return bytes suitable for writing to .pub file
-// returns in the format "ssh-rsa ..."
-func generatePublicKey(privatekey *rsa.PublicKey) ([]byte, error) {
-	publicRsaKey, err := ssh.NewPublicKey(privatekey)
-	if err != nil {
-		return nil, err
-	}
-
-	pubKeyBytes := ssh.MarshalAuthorizedKey(publicRsaKey)
-
-	log.Println("Public key generated")
-	return pubKeyBytes, nil
-}
-
-// encodePrivateKeyToPEM encodes Private Key from RSA to PEM format
-func encodePrivateKeyToPEM(privateKey *rsa.PrivateKey) []byte {
-	// Get ASN.1 DER format
-	privDER := x509.MarshalPKCS1PrivateKey(privateKey)
-
-	// pem.Block
-	privBlock := pem.Block{
-		Type:    "RSA PRIVATE KEY",
-		Headers: nil,
-		Bytes:   privDER,
-	}
-
-	// Private key in PEM format
-	privatePEM := pem.EncodeToMemory(&privBlock)
-
-	return privatePEM
-}
-
-func GetServerSigner() (ssh.Signer, error) {
-	key, err := ioutil.ReadFile(aws_helpers.PRIVATE_KEY)
-	if err != nil {
-		log.Fatalf("unable to read private key: %v", err)
+		log.Printf("unable to read private key: %v", err)
 		return nil, err
 	}
 
 	// Create the Signer for this private key.
 	signer, err := ssh.ParsePrivateKey(key)
 	if err != nil {
-		log.Fatalf("unable to parse private key: %v", err)
-		return nil, err
+		return nil, fmt.Errorf("unable to parse public key: %v", err)
 	}
 
 	return signer, nil
 }
 
-func GetServerPublicKey() ([]byte, error) {
-	publicKey, err := ioutil.ReadFile(aws_helpers.PUBLIC_KEY)
+func (s SSHGateway) GetServerPublicKey() ([]byte, error) {
+	publicKey, err := ioutil.ReadFile(s.Config.PublicKeyPath)
 	if err != nil {
-		log.Fatalf("unable to read private key: %v", err)
+		log.Printf("unable to read private key: %v", err)
 		return nil, err
 	}
 	return publicKey, nil

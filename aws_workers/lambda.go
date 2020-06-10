@@ -7,6 +7,7 @@ import (
 
 	"encoding/json"
 	"fmt"
+	cfg "ssh-gateway/ssh-engine/config"
 )
 
 type SSHCertificateSignRequestDto struct {
@@ -31,7 +32,7 @@ func invokeLambda(request interface{}, physical_lambda_name string) (*lambda.Inv
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
 	}))
-	client := lambda.New(sess, &aws.Config{Region: aws.String(DEFAULT_REGION)})
+	client := lambda.New(sess, &aws.Config{Region: aws.String(cfg.AWS_Config.DefaultRegion)})
 
 	payload, err := json.Marshal(request)
 	if err != nil {
@@ -47,21 +48,21 @@ func invokeLambda(request interface{}, physical_lambda_name string) (*lambda.Inv
 	return result, nil
 }
 
-func GetTargetCertificate(tenant_id string, target_instance_id string, token_id string, public_key []byte) (string, error) {
+func GetTargetCertificate(user_name string, tenant_id string, target_instance_id string, token_id string, public_key []byte) (string, error) {
 
 	request := getTargetSertificateRequest{
 		tenant_id,
 		target_instance_id,
 		SSHCertificateSignRequestDto{
 			string(public_key),
-			USER_NAME,
-			EXPIRATION_PERIOD,
+			user_name,
+			cfg.Server_Config.ExpirationPeriodSec,
 			token_id}}
 
-    result, err := invokeLambda(request, PHYSICAL_LAMBDA_NAME)
+	result, err := invokeLambda(request, cfg.AWS_Config.PhysicalLambdaName)
 	if err != nil {
 		fmt.Printf("invokeLambda returned error: %v\n", err)
-        return "", err
+		return "", err
 	}
 	var resp getTargetSertificateResponse
 
