@@ -55,6 +55,7 @@ func (d *SSHDialer) GetJITSSHClientConfig() (*ssh.ClientConfig, error) {
 		cert_id,
 		context.ServerPublicKey)
 	if err != nil {
+		
 		return nil, fmt.Errorf("unable to read private key: %v", err)
 	}
 
