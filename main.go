@@ -9,6 +9,7 @@ import (
 
 	rec "ssh-gateway/recorders"
 	eng "ssh-gateway/ssh-engine"
+	cfg "ssh-gateway/ssh-engine/config"
 )
 
 func init() {
@@ -28,10 +29,11 @@ func main() {
 
 	// Set new SSH Server to listen to new incoming connections
 	s := eng.SSHGateway{}
-	s.ListeningPort = *eng.ListeningPort
+	s.ListeningPort = *cfg.ListeningPort
 	s.RelayInfo = &eng.RelayInfo{}
 	s.RelayInfo.EnableRecording = *rec.EnableRecording
 	s.RelayInfo.RecordingsDir = *rec.RecordingDir
+	s.Config = cfg.Server_Config
 
 	if s.NewSSHGateway() != nil {
 		panic("SSH Gatweay could not start")
@@ -49,27 +51,28 @@ func setConfig() {
 	config, err := loadConfig()
 	if err != nil {
 		fmt.Printf("Load Configuration error: %v\n", err)
-		os.Exit(eng.FileNotFoundExitCode)
+		os.Exit(cfg.FileNotFoundExitCode)
 	}
 
-	eng.Server_Config = &config.Server
-	eng.Dialer_Config = &config.Dialer
+	cfg.Server_Config = &config.Server
+	cfg.Dialer_Config = &config.Dialer
+	cfg.AWS_Config = &config.AWS
 	// relayConfig = &config.Relay
 }
 
-func loadConfig() (*eng.ConfigGlobal, error) {
+func loadConfig() (*cfg.ConfigGlobal, error) {
 	// Print File
-	fmt.Println(eng.ConfigFilePath)
+	fmt.Println(cfg.ConfigFilePath)
 
 	// todo: Check if files exists
-	if fileExists(*eng.ConfigFilePath) {
+	if fileExists(*cfg.ConfigFilePath) {
 		// Read File
-		configData, err := ioutil.ReadFile(*eng.ConfigFilePath)
+		configData, err := ioutil.ReadFile(*cfg.ConfigFilePath)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to open config file: %s", err)
 		}
 		// Unmarshal json
-		config := &eng.ConfigGlobal{}
+		config := &cfg.ConfigGlobal{}
 		err = json.Unmarshal(configData, config)
 		if err != nil {
 			return nil, fmt.Errorf("Unable to unmarhal json config file: %s", err)
@@ -78,7 +81,7 @@ func loadConfig() (*eng.ConfigGlobal, error) {
 
 	}
 
-	err := fmt.Errorf("Config file not found: %s", *eng.ConfigFilePath)
+	err := fmt.Errorf("Config file not found: %s", *cfg.ConfigFilePath)
 	return nil, err
 }
 
@@ -95,8 +98,8 @@ func fileExists(filename string) bool {
 // *********************************
 func printRuntimeArgs() {
 	fmt.Println("SSH Gateway Running")
-	fmt.Printf("Configuration File: %s\n", *eng.ConfigFilePath)
-	fmt.Printf("SSH Gateway Listening Port: %d\n", *eng.ListeningPort)
+	fmt.Printf("Configuration File: %s\n", *cfg.ConfigFilePath)
+	fmt.Printf("SSH Gateway Listening Port: %d\n", *cfg.ListeningPort)
 	fmt.Printf("Session Recording Enabled: %t\n", *rec.EnableRecording)
 	fmt.Printf("Session Recording Dir: %s\n", *rec.RecordingDir)
 }
@@ -116,8 +119,8 @@ func setCommandLineArgs() {
 			"---------------------------\n"
 	)
 
-	eng.ConfigFilePath = flag.String("cfg", defaultConfigurtionFile, "The path of the ssh-gateway configuration file")
-	eng.ListeningPort = flag.Int("port", defaultListentingPort, "The port that the ssh gateway is listening to client connections")
+	cfg.ConfigFilePath = flag.String("cfg", defaultConfigurtionFile, "The path of the ssh-gateway configuration file")
+	cfg.ListeningPort = flag.Int("port", defaultListentingPort, "The port that the ssh gateway is listening to client connections")
 	rec.RecordingDir = flag.String("rec-path", defaultRecordingDir, "The path of the session recording dir")
 	rec.EnableRecording = flag.Bool("rec", defaultEnableRecording, "To enable the recording of the client sessions. The value is true / false")
 	flag.Usage = func() {

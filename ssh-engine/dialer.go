@@ -8,21 +8,12 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	aws_helpers "ssh-gateway/aws_workers"
+	cfg "ssh-gateway/ssh-engine/config"
 	generic_structs "ssh-gateway/ssh-engine/generic-structs"
 )
 
-type DialerConfig struct {
-	DefaultPort          int
-	MinPortToRotate      int
-	MaxPortToRotate      int
-	AuthType             string
-	User                 string
-	Password             string
-	DefaultTargetAddress string
-}
-
 type SSHDialer struct {
-	dialerConfig     DialerConfig
+	dialerConfig     cfg.DialerConfig
 	DialerTargetInfo *generic_structs.TargetInfo
 }
 
@@ -39,38 +30,44 @@ func (d *SSHDialer) GetSSHUserPassConfig() (*ssh.ClientConfig, error) {
 	sshUserPassConfig := &ssh.ClientConfig{
 		User: d.DialerTargetInfo.TargetUser,
 		// todo : change this implementation to be passed from the idp / secret manage
-		Auth:    []ssh.AuthMethod{ssh.Password(Dialer_Config.Password)},
+		Auth:    []ssh.AuthMethod{ssh.Password(cfg.Dialer_Config.Password)},
 		Timeout: 15 * time.Second,
 	}
 	sshUserPassConfig.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 
 	if sshUserPassConfig == nil {
-		log.Fatal("No ssh user pass config")
+		return nil, fmt.Errorf("No ssh user pass config")
 	}
 	return sshUserPassConfig, nil
 }
 
 func (d *SSHDialer) GetJITSSHClientConfig() (*ssh.ClientConfig, error) {
 
-	certPEM, err := aws_helpers.GetTargetCertificate(
-		context.TenantId,
+	const cert_id_template = "cert_for_%s_%s_%s"
+	cert_id := fmt.Sprintf(cert_id_template,
+		d.DialerTargetInfo.TargetAddress,
 		d.DialerTargetInfo.TargetId,
-		aws_helpers.CERTIFICATE_TOKEN_ID,
+		d.DialerTargetInfo.SessionId)
+	certPEM, err := aws_helpers.GetTargetCertificate(
+		d.DialerTargetInfo.TargetUser,
+		cfg.AWS_Config.TenantId,
+		d.DialerTargetInfo.TargetId,
+		cert_id,
 		context.ServerPublicKey)
 	if err != nil {
-		log.Fatalf("unable to read private key: %v", err)
-
+		return nil, fmt.Errorf("unable to read private key: %v", err)
 	}
 
 	pk, _, _, _, err := ssh.ParseAuthorizedKey([]byte(certPEM))
 	if err != nil {
-		log.Fatalf("unable to parse public key: %v", err)
+		return nil, fmt.Errorf("unable to parse public key: %v", err)
+
 	}
 	_ = pk
 
 	certSigner, err := ssh.NewCertSigner(pk.(*ssh.Certificate), context.ServerSigner)
 	if err != nil {
-		log.Fatalf("failed to create cert signer: %v", err)
+		return nil, err
 	}
 
 	clientConfig := &ssh.ClientConfig{
@@ -126,7 +123,7 @@ func (d *SSHDialer) connectToTarget(relayChannel ssh.Channel) (*ssh.Client, erro
 		}
 
 	} else {
-		log.Fatalf("Wrong Auth Type...")
+		return nil, fmt.Errorf("Wrong Auth Type...")
 	}
 
 	remoteHost := fmt.Sprintf("%s:%d", d.DialerTargetInfo.TargetAddress, d.DialerTargetInfo.TargetPort)

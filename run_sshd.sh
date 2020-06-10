@@ -1,0 +1,15 @@
+sudo /usr/sbin/sshd -p 2022 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2023 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2024 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2025 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2026 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2027 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2028 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2029 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2030 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2031 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2032 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2033 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2034 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2035 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2036 -f /etc/ssh/sshd_config

@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	// ssh_engine "ssh-gateway/ssh-engine"
 	"strconv"
 	"sync"
 	"time"
@@ -15,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 
-	aws_helpers "ssh-gateway/aws_workers"
+	cfg "ssh-gateway/ssh-engine/config"
 	gen "ssh-gateway/ssh-engine/generic-structs"
 )
 
@@ -76,7 +78,7 @@ type Logger struct {
 func NewLoggerByTargetInfo(targetInfo *gen.TargetInfo) (*Logger, error) {
 	return New(&Config{
 		LogGroupName: "SSH_Gateway_Logs",
-		Client:       cloudwatchlogs.New(session.New(), &aws.Config{Region: aws.String(aws_helpers.DEFAULT_REGION)}),
+		Client:       cloudwatchlogs.New(session.New(), &aws.Config{Region: aws.String(cfg.AWS_Config.DefaultRegion)}),
 	}, targetInfo)
 }
 
@@ -161,8 +163,8 @@ func (lg *Logger) LogWarning(message string, function_name string) {
 
 func (lg *Logger) getDefaultLogRequestDto(message string) LogRequestDto {
 	lrd := LogRequestDto{
-		TenantId:          aws_helpers.TENANT_ID,
-		Region:            aws_helpers.DEFAULT_REGION,
+		TenantId:          cfg.AWS_Config.TenantId,
+		Region:            cfg.AWS_Config.DefaultRegion,
 		OriginServiceName: "SSH Gateway Service",
 		Timestamp:         time.Now().Format("2006-01-02T15:04:05.000000"),
 		Message:           message,

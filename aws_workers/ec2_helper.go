@@ -3,6 +3,8 @@ package aws_helpers
 import (
 	"fmt"
 
+	cfg "ssh-gateway/ssh-engine/config"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -20,7 +22,7 @@ func GetPuplicIP(target_instance_id string) (ip string, err error) {
 		SharedConfigState: session.SharedConfigEnable,
 	}))
 
-	svc := ec2.New(sess, &aws.Config{Region: aws.String(DEFAULT_REGION)})
+	svc := ec2.New(sess, &aws.Config{Region: aws.String(cfg.AWS_Config.DefaultRegion)})
 
 	params := &ec2.DescribeInstancesInput{
 		Filters: []*ec2.Filter{

@@ -110,12 +110,14 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	}
 
 	// Set Recorders
-	fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
+	// fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
 	cwlRecorder, err := rec.NewCWLRecorder(r.RelayTargetInfo)
 	if err != nil {
 		return err
 	}
-	recorders := []rec.Recorder{fr, cwlRecorder}
+	// recorders := []rec.Recorder{fr, cwlRecorder}
+	recorders := []rec.Recorder{cwlRecorder}
+
 	rec.InitRecording(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests, &recorders)
 	return nil
 }
