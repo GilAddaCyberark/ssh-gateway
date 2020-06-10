@@ -13,7 +13,6 @@ type ServerConfig struct {
 	PrivateKeyPath      string
 	PublicKeyPath       string
 	ExpirationPeriodSec int
-	// CertificateTokenIdTemplate string
 }
 
 type AWSConfig struct {

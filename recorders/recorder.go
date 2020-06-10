@@ -32,6 +32,7 @@ func InitRecording(
 
 	// defer closer.Do(closeFunc)
 	defer func() {
+		// Gracefull shutdown
 		destPC.Close()
 		sourcePC.Close()
 		if recorders != nil {
@@ -46,14 +47,11 @@ func InitRecording(
 	// Copy from Source <--> Destination
 	go func() {
 		io.Copy(sourcePC, destPC)
-		// io.Copy(sourcePC, *destChannel)
 		stopSignalChannel <- true
 	}()
 
 	go func() {
 		io.Copy(destPC, sourcePC)
-		// io.Copy(*destChannel, sourcePC)
-
 		stopSignalChannel <- true
 	}()
 
@@ -112,10 +110,12 @@ func (p PipedChannel) Read(data []byte) (int, error) {
 
 	n, res := p.parentChannel.Read(data)
 	// Write to Recorders
-	if p.recorders != nil && p.isFromClient {
-		// fmt.Printf("\n--> from read: %s|%v", p.isFromClient, string(data[:n]))
-		for _, recorder := range *p.recorders {
-			recorder.Write(data[:n], p.isFromClient)
+	if data != nil && len(data) > 0 {
+		if p.recorders != nil && p.isFromClient {
+			// fmt.Printf("\n--> from read: %s|%v", p.isFromClient, string(data[:n]))
+			for _, recorder := range *p.recorders {
+				recorder.Write(data[:n], p.isFromClient)
+			}
 		}
 	}
 	return n, res
@@ -127,12 +127,6 @@ func (p PipedChannel) Write(data []byte) (int, error) {
 }
 
 func (p PipedChannel) Close() error {
-
-	if p.recorders != nil {
-		for _, recorder := range *p.recorders {
-			recorder.Close()
-		}
-	}
 	return p.parentChannel.Close()
 }
 
