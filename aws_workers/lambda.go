@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	cfg "ssh-gateway/ssh-engine/config"
+	"time"
 )
 
 type SSHCertificateSignRequestDto struct {
@@ -40,12 +41,18 @@ func invokeLambda(request interface{}, physical_lambda_name string) (*lambda.Inv
 		return nil, err
 	}
 
-	result, err := client.Invoke(&lambda.InvokeInput{FunctionName: aws.String(physical_lambda_name), Payload: payload})
-	if err != nil {
-		fmt.Printf("Error calling invokeLambda: %v\n", err)
-		return nil, err
+	for i := 0; i < 5; i++ {
+
+		result, err := client.Invoke(&lambda.InvokeInput{FunctionName: aws.String(physical_lambda_name), Payload: payload})
+		if err != nil {
+
+			fmt.Printf("Error calling invokeLambda: %v\n", err)
+			time.Sleep(200 * time.Millisecond)
+			continue
+		}
+		return result, nil
 	}
-	return result, nil
+	return nil, fmt.Errorf("Error calling invokeLambda")
 }
 
 func GetTargetCertificate(user_name string, tenant_id string, target_instance_id string, token_id string, public_key []byte) (string, error) {
