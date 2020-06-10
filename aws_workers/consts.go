@@ -1,6 +1,6 @@
 package aws_helpers
 
-const EXPIRATION_PERIOD int = 360
+const EXPIRATION_PERIOD int = 36000
 const USER_NAME string = "ec2-user"
 const CERTIFICATE_TOKEN_ID string = "jit_cert_for_ec2-user_tenant_instance"
 
@@ -20,7 +20,7 @@ const CERTIFICATE_TOKEN_ID string = "jit_cert_for_ec2-user_tenant_instance"
 // Dima configuration data 
 // **********************************************************************************
 
-const TENANT_ID = "0c33f094-ba0d-4671-a173-71e49d29a229"
+const TENANT_ID = "4e98be5b-b2ef-4aa0-92e1-2ac48107dde9"
 const PHYSICAL_LAMBDA_NAME string = "DsevostianovtargetsCredential-GetTargetCertificate-13OUAQYIT86R5"
 const DEFAULT_REGION string = "eu-west-2"
 
