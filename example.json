@@ -2,7 +2,15 @@
   "Server": {
     "ServerAddress": "0.0.0.0:2222",
     "ServerKeyPath": "ssh_host_rsa_key",
-    "User": "myusername"
+    "User": "dima",
+    "PublicKeyPath": "/Users/dsevostianov/workspace/targets-credentials-service/e2e_output_origin/local_key_pair.pub",
+    "PrivateKeyPath": "/Users/dsevostianov/workspace/targets-credentials-service/e2e_output_origin/local_key_pair",
+    "ExpirationPeriodSec": 360
+  },
+  "AWS": {
+    "TenantId": "4e98be5b-b2ef-4aa0-92e1-2ac48107dde9",
+    "PhysicalLambdaName": "DsevostianovtargetsCredential-GetTargetCertificate-13OUAQYIT86R5",
+    "DefaultRegion": "eu-west-2"
   },
   "Dialer": {
     "DefaultPort": 22,

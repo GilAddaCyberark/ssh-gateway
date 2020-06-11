@@ -127,22 +127,15 @@ func (s *SSHGateway) HandleConn(c net.Conn) {
 		}
 		return
 	}
-	// Fetch Channels
-	srvChannel := <-chans
-	if srvChannel == nil {
-		log.Printf("Exit Connection: Could Get Channels...")
-		srvConn.Close()
-	}
+
 	go ssh.DiscardRequests(reqs)
 
-	// See chanel types in:
-	// https://net-ssh.github.io/ssh/v1/chapter-3.html#:~:text=Channel%20Types,support%20for%20%E2%80%9Cx11%E2%80%9D%20channels.
-	if srvChannel == nil {
-		fmt.Printf("SRV Channel is nil")
-		return
-	}
-	switch srvChannel.ChannelType() {
-	case "session":
+	// Service the incoming Channel channel.
+	for newChannel := range chans {
+		if newChannel.ChannelType() != "session" {
+			newChannel.Reject(ssh.UnknownChannelType, "connection flow not supported, only interactive sessions are permitted")
+			continue
+		}
 		connStr := srvConn.User()
 		ti, err := gen.GetTargetInfoByConnectionString(connStr)
 		if err != nil {
@@ -155,18 +148,10 @@ func (s *SSHGateway) HandleConn(c net.Conn) {
 		}
 		Session_Manager.AddNewSession(&relay)
 		log.Printf("After AddSession: %d\n", Session_Manager.GetOpenSessionsCount())
-
-		relay.ProxySession(startTime, srvConn, srvChannel, chans)
-
+		relay.ProxySession(startTime, srvConn, newChannel)
 		Session_Manager.RemoveSession(&relay)
 		fmt.Printf("After RemoveSession: %d\n", Session_Manager.GetOpenSessionsCount())
-	default:
-		log.Printf("Chqnnel Type Unsupported: %s Connection Rejected", srvChannel.ChannelType())
-		srvChannel.Reject(ssh.UnknownChannelType, "connection flow not supported, only interactive sessions are permitted.")
 	}
-
-	//log.Printf("ALL OK, closing as nothing left to do...")
-	srvConn.Close()
 }
 
 func (s SSHGateway) GetServerSigner() (ssh.Signer, error) {
