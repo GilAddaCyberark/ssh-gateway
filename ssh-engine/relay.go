@@ -3,6 +3,7 @@ package ssh_engine
 import (
 	"fmt"
 	"log"
+	"ssh-gateway/ssh-engine/config"
 	"time"
 
 	rec "ssh-gateway/recorders"
@@ -110,14 +111,21 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	}
 
 	// Set Recorders
-	// fr := rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
-	cwlRecorder, err := rec.NewCWLRecorder(r.RelayTargetInfo)
-	if err != nil {
-		return err
+	var recorders []rec.Recorder
+	if config.Server_Config.EnableFileRecorder {
+		var fileRecorder rec.Recorder = rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
+		recorders = append(recorders, fileRecorder)
 	}
-	// recorders := []rec.Recorder{fr, cwlRecorder}
-	recorders := []rec.Recorder{cwlRecorder}
 
+	if config.Server_Config.EnableCWLRecorder {
+		cwlRecorder, err := rec.NewCWLRecorder(r.RelayTargetInfo)
+		if err != nil {
+			return err
+		}
+		var cwlRecorderIface rec.Recorder = cwlRecorder
+		recorders = append(recorders, cwlRecorderIface)
+
+	}
 	rec.InitRecording(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests, &recorders)
 	return nil
 }

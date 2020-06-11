@@ -137,7 +137,10 @@ func (s *SSHGateway) HandleConn(c net.Conn) {
 
 	// See chanel types in:
 	// https://net-ssh.github.io/ssh/v1/chapter-3.html#:~:text=Channel%20Types,support%20for%20%E2%80%9Cx11%E2%80%9D%20channels.
-
+	if srvChannel == nil {
+		fmt.Printf("SRV Channel is nil")
+		return
+	}
 	switch srvChannel.ChannelType() {
 	case "session":
 		connStr := srvConn.User()

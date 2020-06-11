@@ -13,6 +13,8 @@ type ServerConfig struct {
 	PrivateKeyPath      string
 	PublicKeyPath       string
 	ExpirationPeriodSec int
+	EnableFileRecorder  bool
+	EnableCWLRecorder   bool
 }
 
 type AWSConfig struct {
