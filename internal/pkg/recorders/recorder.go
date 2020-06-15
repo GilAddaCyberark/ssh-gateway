@@ -42,17 +42,17 @@ func InitRecording(
 		}
 	}()
 
-	stopSignalChannel := make(chan bool, 1)
+	terminationChannel := make(chan bool, 1)
 
 	// Copy from Source <--> Destination
 	go func() {
 		io.Copy(sourcePC, destPC)
-		stopSignalChannel <- true
+		terminationChannel <- true
 	}()
 
 	go func() {
 		io.Copy(destPC, sourcePC)
-		stopSignalChannel <- true
+		terminationChannel <- true
 	}()
 
 	// Handle Requets and Pass them to the other chanel
@@ -79,7 +79,7 @@ func InitRecording(
 				return
 			}
 			req.Reply(b, nil)
-		case <-stopSignalChannel:
+		case <-terminationChannel:
 			return
 		}
 	}
@@ -110,7 +110,7 @@ func (p PipedChannel) Read(data []byte) (int, error) {
 
 	n, res := p.parentChannel.Read(data)
 	// Write to Recorders
-	if data != nil && len(data) > 0 {
+	if len(data) > 0 {
 		if p.recorders != nil && p.isFromClient {
 			// fmt.Printf("\n--> from read: %s|%v", p.isFromClient, string(data[:n]))
 			for _, recorder := range *p.recorders {

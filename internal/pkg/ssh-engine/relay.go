@@ -53,19 +53,23 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	go func() {
 		// todo : Check why do we need those requests masking
 		for req := range sourceRequests {
+			switch req.Type {
 			// todo - replace that logging with audit server..
-			if req.Type == "auth-agent-req@openssh.com" {
-				// agentForwarding = true
-				if req.WantReply {
-					req.Reply(true, []byte{})
+			case "auth-agent-req@openssh.com":
+				{
+					// agentForwarding = true
+					if req.WantReply {
+						req.Reply(true, []byte{})
+					}
+					continue
 				}
-				continue
-			} else if (req.Type == "pty-req") && (req.WantReply) {
-				req.Reply(true, []byte{})
-				req.WantReply = false
-			} else if (req.Type == "shell") && (req.WantReply) {
-				req.Reply(true, []byte{})
-				req.WantReply = false
+			case "pty-req", "shell":
+				{
+					if req.WantReply {
+						req.Reply(true, []byte{})
+						req.WantReply = false
+					}
+				}
 			}
 			sourceMaskedReqs <- req
 		}
