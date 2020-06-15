@@ -7,9 +7,9 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	aws_helpers "ssh-gateway/aws_workers"
+	aws_helpers "ssh-gateway/internal/pkg/aws_workers"
 	cfg "ssh-gateway/configs"
-	generic_structs "ssh-gateway/ssh-engine/generic-structs"
+	generic_structs "ssh-gateway/internal/pkg/ssh-engine/generic-structs"
 )
 
 type SSHDialer struct {

@@ -2,8 +2,8 @@ package recorders
 
 import (
 	"bytes"
-	cwlogger "ssh-gateway/cw_logger"
-	gen "ssh-gateway/ssh-engine/generic-structs"
+	cwlogger "ssh-gateway/internal/pkg/cw_logger"
+	gen "ssh-gateway/internal/pkg/ssh-engine/generic-structs"
 )
 
 type CWLRecorder struct {

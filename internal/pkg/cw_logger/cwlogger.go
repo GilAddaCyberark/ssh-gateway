@@ -17,7 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 
 	cfg "ssh-gateway/configs"
-	gen "ssh-gateway/ssh-engine/generic-structs"
+	gen "ssh-gateway/internal/pkg/ssh-engine/generic-structs"
 )
 
 const (

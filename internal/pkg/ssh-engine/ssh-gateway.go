@@ -11,7 +11,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	cfg "ssh-gateway/configs"
-	gen "ssh-gateway/ssh-engine/generic-structs"
+	gen "ssh-gateway/internal/pkg/ssh-engine/generic-structs"
 )
 
 const SERVER_VERSION = "SSH-2.0-EVEREST-SSH-GW"

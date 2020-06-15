@@ -6,8 +6,8 @@ import (
 	config "ssh-gateway/configs"
 	"time"
 
-	rec "ssh-gateway/recorders"
-	gen "ssh-gateway/ssh-engine/generic-structs"
+	rec "ssh-gateway/internal/pkg/recorders"
+	gen "ssh-gateway/internal/pkg/ssh-engine/generic-structs"
 
 	"golang.org/x/crypto/ssh"
 )

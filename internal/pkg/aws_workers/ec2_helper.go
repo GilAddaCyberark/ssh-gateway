@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	cfg "ssh-gateway/configs"
-	cache "ssh-gateway/ssh-engine/cache"
+	cache "ssh-gateway/internal/pkg/ssh-engine/cache"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"

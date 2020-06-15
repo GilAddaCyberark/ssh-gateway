@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 
 	cfg "ssh-gateway/configs"
-	rec "ssh-gateway/recorders"
-	eng "ssh-gateway/ssh-engine"
+	rec "ssh-gateway/internal/pkg/recorders"
+	eng "ssh-gateway/internal/pkg/ssh-engine"
 )
 
 func init() {

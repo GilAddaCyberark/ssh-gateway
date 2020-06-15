@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	gen "ssh-gateway/ssh-engine/generic-structs"
+	gen "ssh-gateway/internal/pkg/ssh-engine/generic-structs"
 	"sync"
 	"time"
 )
