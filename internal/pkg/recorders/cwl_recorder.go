@@ -7,28 +7,30 @@ import (
 )
 
 type CWLRecorder struct {
-	Logger    *cwlogger.Logger
-	logBuffer *bytes.Buffer
+	Recorder
+	targetInfo *gen.TargetInfo
+	Logger     *cwlogger.Logger
+	logBuffer  *bytes.Buffer
 }
 
-func NewCWLRecorder(targetInfo *gen.TargetInfo) (*CWLRecorder, error) {
-	cwl := CWLRecorder{}
-	logger, err := cwlogger.NewLoggerByTargetInfo(targetInfo)
-
-	if err != nil {
-		return nil, err
-	}
-	cwl.Logger = logger
-	buf := make([]byte, 0)
-	cwl.logBuffer = bytes.NewBuffer(buf)
-	cwl.Logger.SessionStarted("Session Status", "NewCWLRecorder")
-
-	return &cwl, nil
+func NewCWLRecorder(targetInfo *gen.TargetInfo) *CWLRecorder {
+	cwl := CWLRecorder{targetInfo: targetInfo}
+	return &cwl
 }
 
 func (c *CWLRecorder) Init() error {
+	logger, err := cwlogger.NewLoggerByTargetInfo(c.targetInfo)
+
+	if err != nil {
+		return err
+	}
+	c.Logger = logger
+	buf := make([]byte, 0)
+	c.logBuffer = bytes.NewBuffer(buf)
+	c.Logger.SessionStarted("Session Status", "NewCWLRecorder")
 	return nil
 }
+
 func (c *CWLRecorder) Close() error {
 	c.Logger.SessionFinished("Session Status", "ProxySession")
 	c.Logger.Close()
