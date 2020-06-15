@@ -8,12 +8,11 @@ logs
 .DS_Store
 .vscode/
 config.code-workspace
-ssh-gateway
 ssh_host_rsa_key
 config.json
 recordings/*
 __debug_bin
-main
+cmd/ssh-gateway/ssh-gateway
 
 # Test binary, built with `go test -c`
 *.test
