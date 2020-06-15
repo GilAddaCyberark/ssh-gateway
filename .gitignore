@@ -12,7 +12,7 @@ ssh-gateway
 ssh_host_rsa_key
 config.json
 recordings/*
-_debug_bin
+__debug_bin
 
 # Test binary, built with `go test -c`
 *.test

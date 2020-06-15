@@ -1,0 +1,27 @@
+sudo kill $(ps -ef | grep /usr/sbin/sshd | grep root | awk '{print $2}')
+sudo /usr/sbin/sshd -p 22 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2022 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2023 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2024 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2025 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2026 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2027 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2028 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2029 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2030 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2031 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2032 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2033 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2034 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2035 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2036 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2037 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2038 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2039 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2040 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2041 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2042 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2043 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2044 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2045 -f /etc/ssh/sshd_config
+sudo /usr/sbin/sshd -p 2046 -f /etc/ssh/sshd_config
