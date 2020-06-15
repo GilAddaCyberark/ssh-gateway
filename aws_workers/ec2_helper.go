@@ -3,8 +3,8 @@ package aws_helpers
 import (
 	"fmt"
 
+	cfg "ssh-gateway/configs"
 	cache "ssh-gateway/ssh-engine/cache"
-	cfg "ssh-gateway/ssh-engine/config"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"

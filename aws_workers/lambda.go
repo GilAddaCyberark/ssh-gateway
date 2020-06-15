@@ -7,8 +7,8 @@ import (
 
 	"encoding/json"
 	"fmt"
+	cfg "ssh-gateway/configs"
 	cache "ssh-gateway/ssh-engine/cache"
-	cfg "ssh-gateway/ssh-engine/config"
 	"time"
 )
 

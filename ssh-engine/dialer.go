@@ -8,7 +8,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	aws_helpers "ssh-gateway/aws_workers"
-	cfg "ssh-gateway/ssh-engine/config"
+	cfg "ssh-gateway/configs"
 	generic_structs "ssh-gateway/ssh-engine/generic-structs"
 )
 
@@ -55,7 +55,7 @@ func (d *SSHDialer) GetJITSSHClientConfig() (*ssh.ClientConfig, error) {
 		cert_id,
 		context.ServerPublicKey)
 	if err != nil {
-		
+
 		return nil, fmt.Errorf("unable to read private key: %v", err)
 	}
 

@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	cfg "ssh-gateway/ssh-engine/config"
+	cfg "ssh-gateway/configs"
 	gen "ssh-gateway/ssh-engine/generic-structs"
 )
 

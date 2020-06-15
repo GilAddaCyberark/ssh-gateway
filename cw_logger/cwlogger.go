@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 
-	// ssh_engine "ssh-gateway/ssh-engine"
 	"strconv"
 	"sync"
 	"time"
@@ -17,7 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 
-	cfg "ssh-gateway/ssh-engine/config"
+	cfg "ssh-gateway/configs"
 	gen "ssh-gateway/ssh-engine/generic-structs"
 )
 

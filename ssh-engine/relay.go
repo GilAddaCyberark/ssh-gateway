@@ -3,7 +3,7 @@ package ssh_engine
 import (
 	"fmt"
 	"log"
-	"ssh-gateway/ssh-engine/config"
+	config "ssh-gateway/configs"
 	"time"
 
 	rec "ssh-gateway/recorders"
