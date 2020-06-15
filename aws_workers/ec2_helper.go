@@ -3,12 +3,15 @@ package aws_helpers
 import (
 	"fmt"
 
+	cache "ssh-gateway/ssh-engine/cache"
 	cfg "ssh-gateway/ssh-engine/config"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
+
+var Public_Ip_Cache_Manager = *cache.NewPublicIpCacheManager()
 
 func GetPuplicIP(target_instance_id string) (ip string, err error) {
 	defer func() {
@@ -17,6 +20,11 @@ func GetPuplicIP(target_instance_id string) (ip string, err error) {
 			err = r.(error)
 		}
 	}()
+
+	publicIP := Public_Ip_Cache_Manager.GetPublicIp(target_instance_id)
+	if len(publicIP) != 0 {
+		return publicIP, nil
+	}
 
 	sess := session.Must(session.NewSessionWithOptions(session.Options{
 		SharedConfigState: session.SharedConfigEnable,
@@ -56,6 +64,6 @@ func GetPuplicIP(target_instance_id string) (ip string, err error) {
 		err := fmt.Errorf("Public IP of instance id: %s not found\n", target_instance_id)
 		return "", err
 	}
-
+	Public_Ip_Cache_Manager.SavePublicIP(target_instance_id, *public_ip)
 	return *public_ip, nil
 }

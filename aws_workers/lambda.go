@@ -7,9 +7,12 @@ import (
 
 	"encoding/json"
 	"fmt"
+	cache "ssh-gateway/ssh-engine/cache"
 	cfg "ssh-gateway/ssh-engine/config"
 	"time"
 )
+
+var Certificate_Cache_Manager = *cache.NewCertificatesCacheManager()
 
 type SSHCertificateSignRequestDto struct {
 	UserPublicKey     string `json:"user_public_key"`
@@ -57,6 +60,12 @@ func invokeLambda(request interface{}, physical_lambda_name string) (*lambda.Inv
 
 func GetTargetCertificate(user_name string, tenant_id string, target_instance_id string, token_id string, public_key []byte) (string, error) {
 
+	cert_key := fmt.Sprintf("%s###%s###%s", tenant_id, target_instance_id, user_name)
+	cert := Certificate_Cache_Manager.GetCertificate(cert_key)
+	if len(cert) > 0 {
+		return cert, nil
+	}
+
 	request := getTargetSertificateRequest{
 		tenant_id,
 		target_instance_id,
@@ -79,5 +88,6 @@ func GetTargetCertificate(user_name string, tenant_id string, target_instance_id
 		return "", err
 	}
 
+	Certificate_Cache_Manager.SaveCertificate(cert_key, resp.Certificate)
 	return resp.Certificate, nil
 }
