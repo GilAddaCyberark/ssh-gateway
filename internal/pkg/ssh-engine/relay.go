@@ -3,10 +3,8 @@ package ssh_engine
 import (
 	"fmt"
 	"log"
-	config "ssh-gateway/configs"
 	"time"
 
-	rec "ssh-gateway/internal/pkg/recorders"
 	gen "ssh-gateway/internal/pkg/ssh-engine/generic-structs"
 
 	"golang.org/x/crypto/ssh"
@@ -20,6 +18,7 @@ type RelayInfo struct {
 type SSHRelay struct {
 	RelayTargetInfo *gen.TargetInfo
 	RelayInfo       *RelayInfo
+	Controller      *DataStreamController
 }
 
 func NewRelay(targetInfo *gen.TargetInfo, relayInfo *RelayInfo) (SSHRelay, error) {
@@ -53,19 +52,23 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 	go func() {
 		// todo : Check why do we need those requests masking
 		for req := range sourceRequests {
+			switch req.Type {
 			// todo - replace that logging with audit server..
-			if req.Type == "auth-agent-req@openssh.com" {
-				// agentForwarding = true
-				if req.WantReply {
-					req.Reply(true, []byte{})
+			case "auth-agent-req@openssh.com":
+				{
+					// agentForwarding = true
+					if req.WantReply {
+						req.Reply(true, []byte{})
+					}
+					continue
 				}
-				continue
-			} else if (req.Type == "pty-req") && (req.WantReply) {
-				req.Reply(true, []byte{})
-				req.WantReply = false
-			} else if (req.Type == "shell") && (req.WantReply) {
-				req.Reply(true, []byte{})
-				req.WantReply = false
+			case "pty-req", "shell":
+				{
+					if req.WantReply {
+						req.Reply(true, []byte{})
+						req.WantReply = false
+					}
+				}
 			}
 			sourceMaskedReqs <- req
 		}
@@ -98,22 +101,19 @@ func (r *SSHRelay) ProxySession(startTime time.Time, sshConn *ssh.ServerConn, sr
 		return err
 	}
 
-	// Set Recorders
-	var recorders []rec.Recorder
-	if config.Server_Config.EnableFileRecorder {
-		var fileRecorder rec.Recorder = rec.NewFileRecorder(*r.RelayTargetInfo, r.RelayInfo.RecordingsDir)
-		recorders = append(recorders, fileRecorder)
+	// Set Data Stream Controller
+	r.Controller, err = NewDataStreamController(r)
+	if err != nil {
+		fmt.Fprintf(sourceChannel, "Data stream controller setup failed: %v\r\n", err)
+		sourceChannel.Close()
+		return err
 	}
 
-	if config.Server_Config.EnableCWLRecorder {
-		cwlRecorder, err := rec.NewCWLRecorder(r.RelayTargetInfo)
-		if err != nil {
-			return err
-		}
-		var cwlRecorderIface rec.Recorder = cwlRecorder
-		recorders = append(recorders, cwlRecorderIface)
-
+	err = r.Controller.Run(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests)
+	if err != nil {
+		fmt.Fprintf(sourceChannel, "Data stream controller Run failed: %v\r\n", err)
+		sourceChannel.Close()
+		return err
 	}
-	rec.InitRecording(sourceChannel, sourceMaskedReqs, &destChannel, &destRequests, &recorders)
 	return nil
 }

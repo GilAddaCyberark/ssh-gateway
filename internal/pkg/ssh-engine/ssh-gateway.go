@@ -82,6 +82,8 @@ func (s *SSHGateway) NewSSHGateway() error {
 	}
 	context.ServerPublicKey = publicKey
 
+	Session_Manager.StartTerminationThread()
+
 	return nil
 }
 

@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"sync"
 	"time"
 )
 
@@ -14,7 +13,6 @@ type CertificateEntry struct {
 
 type CertificatesCacheManager struct {
 	BaseCache
-	Certificates sync.Map
 }
 
 func NewCertificatesCacheManager() *CertificatesCacheManager {
@@ -23,7 +21,7 @@ func NewCertificatesCacheManager() *CertificatesCacheManager {
 }
 
 func (ip *CertificatesCacheManager) GetCertificate(cert_key string) string {
-	tip, ok := ip.Certificates.Load(cert_key)
+	tip, ok := ip.CacheMap.Load(cert_key)
 	if ok {
 		// Certificate found in cache. Now check the time expiration.
 		if ip.CheckCacheItemValidity(tip.(CertificateEntry).CreateTime, CERTIFICATE_TIMEOUT_MIN) {
@@ -35,15 +33,6 @@ func (ip *CertificatesCacheManager) GetCertificate(cert_key string) string {
 
 func (ip *CertificatesCacheManager) SaveCertificate(cert_key string, certificate string) {
 	ce := CertificateEntry{certificate, time.Now()}
-	ip.Certificates.Delete(cert_key)
-	ip.Certificates.Store(cert_key, ce)
-}
-
-func (ip *CertificatesCacheManager) GetItemsCount() int {
-	length := 0
-	ip.Certificates.Range(func(_, _ interface{}) bool {
-		length++
-		return true
-	})
-	return length
+	ip.CacheMap.Delete(cert_key)
+	ip.CacheMap.Store(cert_key, ce)
 }

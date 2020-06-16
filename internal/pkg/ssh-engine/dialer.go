@@ -2,24 +2,24 @@ package ssh_engine
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 
-	aws_helpers "ssh-gateway/internal/pkg/aws_workers"
 	cfg "ssh-gateway/configs"
+	aws_helpers "ssh-gateway/internal/pkg/aws_workers"
 	generic_structs "ssh-gateway/internal/pkg/ssh-engine/generic-structs"
 )
 
 type SSHDialer struct {
-	dialerConfig     cfg.DialerConfig
 	DialerTargetInfo *generic_structs.TargetInfo
 }
 
-func NewDialer(TargetInfo *generic_structs.TargetInfo) (SSHDialer, error) {
+func NewDialer(target_info *generic_structs.TargetInfo) (SSHDialer, error) {
 	dialer := SSHDialer{}
-	dialer.DialerTargetInfo = TargetInfo
+	dialer.DialerTargetInfo = target_info
 	return dialer, nil
 }
 
@@ -83,7 +83,7 @@ func (d *SSHDialer) GetJITSSHClientConfig() (*ssh.ClientConfig, error) {
 	return clientConfig, nil
 }
 
-func (d *SSHDialer) connectToTarget(relayChannel ssh.Channel) (*ssh.Client, error) {
+func (d *SSHDialer) connectToTarget(relayChannel io.Writer) (*ssh.Client, error) {
 	var clientConfig *ssh.ClientConfig
 	var err error
 
@@ -111,19 +111,22 @@ func (d *SSHDialer) connectToTarget(relayChannel ssh.Channel) (*ssh.Client, erro
 	fmt.Fprintf(relayChannel, "Connecting to %s\r\n", remoteAddr)
 	log.Printf("Try to connect to target: %s", remoteAddr)
 
-	if d.DialerTargetInfo.AuthType == "pass" {
-		clientConfig, err = d.GetSSHUserPassConfig()
-		if err != nil {
-			return nil, err
+	switch d.DialerTargetInfo.AuthType {
+	case "pass":
+		{
+			clientConfig, err = d.GetSSHUserPassConfig()
+			if err != nil {
+				return nil, err
+			}
 		}
-
-	} else if d.DialerTargetInfo.AuthType == "cert" {
-		clientConfig, err = d.GetJITSSHClientConfig()
-		if err != nil {
-			return nil, err
+	case "cert":
+		{
+			clientConfig, err = d.GetJITSSHClientConfig()
+			if err != nil {
+				return nil, err
+			}
 		}
-
-	} else {
+	default:
 		return nil, fmt.Errorf("Wrong Auth Type...")
 	}
 

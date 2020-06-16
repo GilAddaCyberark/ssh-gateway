@@ -10,6 +10,7 @@ import (
 )
 
 type FileRecorder struct {
+	Recorder
 	targetInfo    gen.TargetInfo
 	recordingDir  string
 	fd            *os.File
