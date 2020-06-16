@@ -1,9 +1,10 @@
 package config
 
 type ConfigGlobal struct {
-	Server ServerConfig
-	Dialer DialerConfig
-	AWS    AWSConfig
+	Server   ServerConfig
+	Dialer   DialerConfig
+	AWS      AWSConfig
+	DataFlow DataFlowConfig
 }
 
 type ServerConfig struct {
@@ -21,6 +22,11 @@ type AWSConfig struct {
 	TenantId           string
 	PhysicalLambdaName string
 	DefaultRegion      string
+}
+
+type DataFlowConfig struct {
+	IdleSessionTimeoutSec int
+	MaxSessionDurationSec int
 }
 
 type DialerConfig struct {
@@ -41,7 +47,6 @@ var Global_Config *ConfigGlobal
 var Server_Config *ServerConfig
 var Dialer_Config *DialerConfig
 var AWS_Config *AWSConfig
+var DataFlow_Config *DataFlowConfig
 var ConfigFilePath *string
 var ListeningPort *int
-
-// var Session_Manager SessionManager = *NewSessionManager()

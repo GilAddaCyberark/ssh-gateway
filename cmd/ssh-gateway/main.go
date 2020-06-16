@@ -58,7 +58,7 @@ func setConfig() {
 	cfg.Server_Config = &config.Server
 	cfg.Dialer_Config = &config.Dialer
 	cfg.AWS_Config = &config.AWS
-	// relayConfig = &config.Relay
+	cfg.DataFlow_Config = &config.DataFlow
 }
 
 func loadConfig() (*cfg.ConfigGlobal, error) {

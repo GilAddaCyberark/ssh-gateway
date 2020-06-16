@@ -6,13 +6,20 @@ import (
 	config "ssh-gateway/configs"
 	rec "ssh-gateway/internal/pkg/recorders"
 
+	"time"
+
 	"golang.org/x/crypto/ssh"
 )
 
 type DataStreamController struct {
-	relay              *SSHRelay
-	recorders          []rec.Recorder
+	relay     *SSHRelay
+	recorders []rec.Recorder
+	destPC    PipedChannel
+	sourcePC  PipedChannel
+
 	terminationChannel chan bool
+	LastUserInputTime  time.Time
+	SessionStartTime   time.Time
 }
 
 func NewDataStreamController(relay *SSHRelay) (*DataStreamController, error) {
@@ -32,14 +39,14 @@ func (dsc *DataStreamController) Run(
 		return err
 	}
 
-	sourcePC := NewPipedChannel(false, sourceChannel, &dsc.recorders) // note that write direction is inverse
-	destPC := NewPipedChannel(true, *destChannel, &dsc.recorders)
+	dsc.sourcePC = NewPipedChannel(false, sourceChannel, &dsc.recorders) // note that write direction is inverse
+	dsc.destPC = NewPipedChannel(true, *destChannel, &dsc.recorders)
 
 	// defer closer.Do(closeFunc)
 	defer func() {
 		// Gracefull shutdown
-		destPC.Close()
-		sourcePC.Close()
+		dsc.destPC.Close()
+		dsc.sourcePC.Close()
 		if dsc.recorders != nil {
 			for _, recorder := range dsc.recorders {
 				recorder.Close()
@@ -47,16 +54,18 @@ func (dsc *DataStreamController) Run(
 		}
 	}()
 
+	dsc.LastUserInputTime = time.Now()
+	dsc.SessionStartTime = dsc.LastUserInputTime
 	dsc.terminationChannel = make(chan bool, 1)
 
 	// Copy from Source <--> Destination
 	go func() {
-		io.Copy(sourcePC, destPC)
+		io.Copy(dsc.sourcePC, dsc.destPC)
 		dsc.terminationChannel <- true
 	}()
 
 	go func() {
-		io.Copy(destPC, sourcePC)
+		io.Copy(dsc.destPC, dsc.sourcePC)
 		dsc.terminationChannel <- true
 	}()
 
@@ -67,7 +76,7 @@ func (dsc *DataStreamController) Run(
 			if req == nil {
 				return nil
 			}
-			b, err := destPC.parentChannel.SendRequest(req.Type, req.WantReply, req.Payload)
+			b, err := dsc.destPC.parentChannel.SendRequest(req.Type, req.WantReply, req.Payload)
 			if err != nil {
 				return nil
 			}
@@ -88,7 +97,6 @@ func (dsc *DataStreamController) Run(
 			return nil
 		}
 	}
-	return nil
 }
 
 func (dsc *DataStreamController) initRecorders() error {
@@ -111,4 +119,26 @@ func (dsc *DataStreamController) initRecorders() error {
 		dsc.recorders = append(dsc.recorders, cwlRecorderIface)
 	}
 	return nil
+}
+
+func (dsc *DataStreamController) TerminateSession() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+
+	dsc.terminationChannel <- true
+	return nil
+}
+
+func (dsc *DataStreamController) SendMessageToUser(msg string) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = r.(error)
+		}
+	}()
+
+	_, err = dsc.sourcePC.Write([]byte(msg))
+	return err
 }
