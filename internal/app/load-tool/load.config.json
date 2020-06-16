@@ -1,0 +1,13 @@
+{
+    "NumClients": 1000,
+    "ParallelLoadClients":50,
+    "GWHost": "3.250.195.61",
+    "GWPort": 2222,
+    "MaxCommands" : 10000,
+    "Instances":[ 
+        "i-0190f618298ff3693",
+        "i-05d3af1d8a4aaf03c",
+        "i-06316bc63aea813ec",
+        "i-0b5ea0d6954565e52"
+    ]
+}
