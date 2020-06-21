@@ -9,14 +9,19 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/pprof"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/crypto/ssh"
 )
+
+var mux sync.Mutex
+var muxCommand sync.Mutex
 
 type LoadCommand struct {
 	command       string
@@ -50,14 +55,12 @@ var CommandTimeOuts int = 0
 var ConnectedClients int = 0
 var LastTimeOutServer string = ""
 
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
-var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
-var wg2 sync.WaitGroup
+// var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
+// var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+// var wg2 sync.WaitGroup
 
-func main() {
-
-	var wg sync.WaitGroup
-
+func init() {
+	// Init Flags
 	// Load configuration file
 	configAbsPath, err := filepath.Abs("load.config.json")
 	if err != nil {
@@ -78,19 +81,87 @@ func main() {
 		}
 	}
 
-	// Start Connecting to Clients
-	targets = make(chan *LoadTarget, loadServerConfig.NumClients)
-	for i := 0; i < loadServerConfig.NumClients/loadServerConfig.ParallelLoadClients; i++ {
-		for i := 1; i <= loadServerConfig.ParallelLoadClients; i++ {
-			wg.Add(1)
-			go connectToRandomHost(&targets, &wg)
-		}
-		wg.Wait()
-	}
-	performLoad()
+	setCommandLineArgs()
 
 }
 
+func SetupCloseHandler() {
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		fmt.Println("\r- Ctrl+C pressed in Terminal")
+		for target := range targets {
+			if target.Client != nil {
+				target.Client.Close()
+			}
+		}
+		os.Exit(0)
+	}()
+}
+func main() {
+	SetupCloseHandler()
+
+	flag.Parse()
+
+	// Run Loaders
+	go performLoad()
+	// Start Connecting to Clients
+	go createConnections()
+
+	for {
+		time.Sleep(time.Second)
+	}
+
+}
+
+func createConnections() {
+
+	targets = make(chan *LoadTarget, loadServerConfig.NumClients)
+	var parallel = loadServerConfig.ParallelLoadClients
+	for {
+		for ConnectedClients < loadServerConfig.NumClients {
+			// timeout := make(chan bool, 1)
+
+			// go func() {
+			// 	time.Sleep(time.Millisecond * time.Duration(2500))
+			// 	timeout <- true
+			// }()
+			var wg sync.WaitGroup
+
+			for i := 1; i <= parallel; i++ {
+				wg.Add(1)
+				go AddConnectionToRandomHost(&targets, &wg)
+			}
+			for i := 1; i <= parallel; i++ {
+				wg.Add(1)
+				go AddConnectionToRandomHost(&targets, &wg)
+			}
+
+			// wait for sync to finish
+			timeoutSec := 15
+			if waitTimeout(&wg, 15*time.Second) {
+				fmt.Printf("Timed out waiting for wait group : %d\n", timeoutSec)
+			} else {
+				fmt.Printf("\n*Wait group finished, number of connections : %d\n", ConnectedClients)
+			}
+		}
+	}
+}
+
+func waitTimeout(wg *sync.WaitGroup, timeout time.Duration) bool {
+	c := make(chan struct{})
+	go func() {
+		defer close(c)
+		wg.Wait()
+	}()
+	select {
+	case <-c:
+		return false // completed normally
+	case <-time.After(timeout):
+		return true // timed out
+	}
+}
 func performLoad() {
 	// Profiling Stuff init
 	cpuprofile := "load.prof"
@@ -104,86 +175,91 @@ func performLoad() {
 
 	fmt.Println("Load Paramaters")
 	fmt.Println("---------------")
-	fmt.Println("Max Clients: %d", loadServerConfig.NumClients)
-	fmt.Println("Max Commands: %d", loadServerConfig.MaxCommands)
-	fmt.Println("Parallel Clients: %d", loadServerConfig.ParallelLoadClients)
+	fmt.Printf("GW Host: %s\n", loadServerConfig.GWHost)
+	fmt.Printf("GW Port: %d\n", loadServerConfig.GWPort)
+	fmt.Printf("Max Clients: %d\n", loadServerConfig.NumClients)
+	fmt.Printf("Max Commands: %d\n", loadServerConfig.MaxCommands)
+	fmt.Printf("Parallel Clients: %d\n", loadServerConfig.ParallelLoadClients)
 
-	commands := make([]LoadCommand, 4)
+	commands := make([]LoadCommand, 5)
 	commands[0] = LoadCommand{command: "ls", minChars: 4, textInResults: "ca.pub"}
 	commands[1] = LoadCommand{command: "pwd", minChars: 4, textInResults: "ec2-user"}
-	commands[2] = LoadCommand{command: "ps -ef", minChars: 50, textInResults: "ps -ef"}
-	commands[3] = LoadCommand{command: "netstat -an", minChars: 50, textInResults: "ESTABLISHED"}
+	commands[2] = LoadCommand{command: "ulimit", minChars: 50, textInResults: "unlimited"}
+	commands[3] = LoadCommand{command: "whoami", minChars: 50, textInResults: "ec2-user"}
+	commands[3] = LoadCommand{command: "uname", minChars: 50, textInResults: "Linux"}
+
 	for i := 0; i < len(commands); i++ {
 		c := commands[i]
 		fmt.Printf("Test Command: %s, Min Chars : %d, Pattern: %s\n", c.command, c.minChars, c.textInResults)
 	}
 
 	startTime := time.Now()
-	var wg sync.WaitGroup
 
 	var invocationCount = 0
+	var sleepBetweenCommandsMs = 800 / loadServerConfig.ParallelLoadClients
 	maxLoops := loadServerConfig.MaxCommands / loadServerConfig.ParallelLoadClients
 	for i := 0; i < maxLoops; i++ {
 		invocationCount++
-		if ConnectedClients >= loadServerConfig.ParallelLoadClients {
+		// if ConnectedClients >= loadServerConfig.ParallelLoadClients {
 
-			c := commands[rand.Intn(len(commands))]
-			invokeBatchStartTime := time.Now()
-			for i := 0; i < loadServerConfig.ParallelLoadClients; i++ {
-				wg.Add(1)
-				go SendCommandToTarget(&targets, c, &wg)
-			}
-			wg.Wait()
-			latency := int(time.Since(invokeBatchStartTime).Milliseconds())
-			CommandElapsedms += int(latency)
-			if latency < 1000 {
-				time.Sleep(time.Duration(1000-latency) * time.Millisecond)
-			}
-			rate := float64(CommandCount) / float64(time.Since(startTime).Seconds())
-			fmt.Printf("\rInvoked: %d, Timeouts %d, Commands per sec %f, Avg latency ms: %f, Last TimoutServer %s",
-				CommandCount,
-				CommandTimeOuts,
-				rate,
-				float32(CommandElapsedms)/float32(CommandCount),
-				LastTimeOutServer)
+		c := commands[rand.Intn(len(commands))]
+		invokeBatchStartTime := time.Now()
+		var wg sync.WaitGroup
+
+		for i := 0; i < loadServerConfig.ParallelLoadClients; i++ {
+			time.Sleep(time.Duration(sleepBetweenCommandsMs) * time.Millisecond)
+			go SendCommandToTarget(&targets, c, &wg)
 		}
-		// time.Sleep(5 * time.Second)
+		if waitTimeout(&wg, 1*time.Second) {
+			fmt.Printf("Timed out waiting for commands :\n")
+		}
+		// wg.Wait()
+		latency := int(time.Since(invokeBatchStartTime).Milliseconds())
+		CommandElapsedms += int(latency)
+		if latency < 1000 {
+			time.Sleep(time.Duration(1000-latency) * time.Millisecond)
+		}
+		rate := float64(CommandCount) / float64(time.Since(startTime).Seconds())
+		fmt.Printf("\nClients: %d, Commands Invoked: %d, Commands Timeouts %d, Commands per sec %f, Avg latency ms: %f, Last TimoutServer %s",
+			ConnectedClients,
+			CommandCount,
+			CommandTimeOuts,
+			rate,
+			float32(CommandElapsedms)/float32(CommandCount),
+			LastTimeOutServer)
 	}
 }
 func SendCommandToTarget(targets *chan *LoadTarget, c LoadCommand, wg *sync.WaitGroup) {
 
 	defer wg.Done()
+	wg.Add(1)
 	CommandCount++
 	var output string
 
 	id := fmt.Sprintf("id-%d", CommandCount)
-	commandToInvoke := fmt.Sprintf("echo %s;%s;", id, c.command)
+	// commandToInvoke := fmt.Sprintf("echo %s;%s;", id, c.command)
+	commandToInvoke := fmt.Sprintf("echo %s;", id)
 
 	t := <-*targets
-	// Check t
 	t.in <- commandToInvoke
 	timeout := make(chan bool, 1)
 	go func() {
-		time.Sleep(10 * time.Second)
+		time.Sleep(time.Millisecond * time.Duration(2500))
 		timeout <- true
 	}()
 
 	select {
 	case output = <-t.out:
-		if len(output) < c.minChars || !strings.Contains(output, c.textInResults) || !strings.Contains(output, id) {
-			fmt.Printf("Command output  Failed : command: %s", c.command)
+		// if len(output) > c.minChars && strings.Contains(output, c.textInResults) && strings.Contains(output, id) {
+		if output != "" && len(output) > 0 && strings.Contains(output, id) {
+
 			*targets <- t
+			// fmt.Printf("Command Invoked: %s\n", commandToInvoke)
 		}
 	case <-timeout:
 		// the read from ch has timed out
-		fmt.Printf("!!! Command timeout: %s\n", t.instanceID)
+		fmt.Printf("!!! Command timeout: %s (%s)\n", t.instanceID, commandToInvoke)
 		CommandTimeOuts++
-		LastTimeOutServer = t.instanceID
-		t.Client.Close()
-		wg2.Add(1)
-		go connectToRandomHost(targets, &wg2)
-		wg2.Wait() // Add another healthy connection
-
 	}
 }
 
@@ -210,7 +286,6 @@ func connectToHost(target *LoadTarget, user string, host string) (*ssh.Client, *
 	}
 
 	// fmt.Printf("Connected to host :%s, with user: %s\n", host, user)
-	fmt.Printf("\rConnections %d", ConnectedClients)
 
 	session, err := client.NewSession()
 	if err != nil {
@@ -228,6 +303,7 @@ func connectToHost(target *LoadTarget, user string, host string) (*ssh.Client, *
 		ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 	}
 
+	mux.Lock()
 	if err := session.RequestPty("xterm", 80, 40, modes); err != nil {
 		return nil, nil, err
 	}
@@ -247,6 +323,7 @@ func connectToHost(target *LoadTarget, user string, host string) (*ssh.Client, *
 	<-out //ignore the shell output
 	target.in = in
 	target.out = out
+	mux.Unlock()
 	return client, session, nil
 }
 
@@ -271,6 +348,7 @@ func MuxShell(w io.Writer, r io.Reader) (chan<- string, <-chan string) {
 		for {
 			n, err := r.Read(buf[t:])
 			if err != nil {
+				fmt.Println(err.Error())
 				close(in)
 				close(out)
 				return
@@ -286,20 +364,24 @@ func MuxShell(w io.Writer, r io.Reader) (chan<- string, <-chan string) {
 	return in, out
 }
 
-func connectToRandomHost(targets *chan *LoadTarget, wg *sync.WaitGroup) {
+func AddConnectionToRandomHost(targets *chan *LoadTarget, wg *sync.WaitGroup) {
 
 	defer wg.Done()
 
 	user_template := "gadda@ec2-user@aws#instance:ssh_port"
 	// user_template := "gadda@ec2-user@instance:ssh_port"
-
-	port := rand.Intn(2046-2022) + 2022
+	countPorts := 2046 - 2022
+	s1 := rand.NewSource(time.Now().UnixNano())
+	r1 := rand.New(s1)
+	port := r1.Intn(countPorts) + 2022
 	port_str := fmt.Sprintf("%d", port)
 	_ = port_str
-	// instances := []string{"i-0190f618298ff3693", "i-05d3af1d8a4aaf03c", "i-06316bc63aea813ec", "i-0b5ea0d6954565e52"}
-	// instances := []string{"i-0190f618298ff3693"}
+	s2 := rand.NewSource(time.Now().UnixNano())
 
-	instance := loadServerConfig.Instances[rand.Intn(len(loadServerConfig.Instances))]
+	r2 := rand.New(s2)
+	instanceIdx := r2.Intn(len(loadServerConfig.Instances))
+	instance := loadServerConfig.Instances[instanceIdx]
+
 	user := strings.Replace(strings.Replace(user_template, "ssh_port", port_str, 1), "instance", instance, 1)
 	host := fmt.Sprintf("%s:%d", loadServerConfig.GWHost, loadServerConfig.GWPort)
 	var t LoadTarget
@@ -307,13 +389,17 @@ func connectToRandomHost(targets *chan *LoadTarget, wg *sync.WaitGroup) {
 	t.instanceID = user
 	for i := 0; i < 4; i++ { // Number of retries
 		client, session, err := connectToHost(&t, user, host)
+		ConnectedClients++
 		if err != nil {
 			fmt.Println("Connection to target failed, retrying")
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(time.Duration(20) * time.Millisecond)
+			ConnectedClients--
+			if client != nil {
+				client.Close()
+			}
 		} else {
 			t.Client = client
 			t.Session = session
-			ConnectedClients++
 			break
 		}
 	}
@@ -322,4 +408,18 @@ func connectToRandomHost(targets *chan *LoadTarget, wg *sync.WaitGroup) {
 	} else { // Success
 		*targets <- &t
 	}
+}
+
+func setCommandLineArgs() {
+
+	const (
+		defaultGWPort = 2222
+	)
+
+	flag.IntVar(&loadServerConfig.GWPort, "port", defaultGWPort, "The port of the ssh gateway")
+	flag.StringVar(&loadServerConfig.GWHost, "host", "54.171.15.94", "The IP Address of the SSH GW")
+	flag.IntVar(&loadServerConfig.NumClients, "clients", 3000, "help message for flagname")
+	flag.IntVar(&loadServerConfig.ParallelLoadClients, "parallel", 20, "help message for flagname")
+	flag.IntVar(&loadServerConfig.MaxCommands, "max", 10000, "Max Command to run and then stop")
+
 }

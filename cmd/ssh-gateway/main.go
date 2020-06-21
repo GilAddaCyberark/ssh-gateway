@@ -111,10 +111,11 @@ func printRuntimeArgs() {
 func setCommandLineArgs() {
 
 	const (
-		defaultConfigurtionFile = "../../configs/config.json"
-		defaultEnableRecording  = false
-		defaultListentingPort   = 2222
-		defaultRecordingDir     = "recordings"
+		defaultConfigurtionFile = "config.json"
+		// defaultConfigurtionFile = "../../configs/config.json"
+		defaultEnableRecording = false
+		defaultListentingPort  = 2222
+		defaultRecordingDir    = "recordings"
 	)
 
 	// Command Line variabls

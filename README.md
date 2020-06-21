@@ -24,10 +24,13 @@ To launch the ssh gatway
     * ssh gadda@ec2-user@aws#i-06316bc63aea813ec@localhost -p 2233
 
 Future Ideas - 
-Multi cloud instance id tokens:
-e.g. 
-aws#i-06316bc63aea813ec
-gcp#some-instance_id
-azr#another_ms_cloud_machine
-
-log to EWS , monitor suspicious commnands
+* Multi cloud instance id tokens: e.g. aws#i-06316bc63aea813ec, gcp#some-instance_id, azr#another_ms_cloud_machine
+* log to EWS 
+* monitor suspicious commnands
+* cache certificate, cache ip resolve to instance, 
+* banner to user,
+* wildcard in instace name and select,
+* terminate session on session expiration
+* terminate session on restricted commands
+* terminate session on idle
+* benchmark 3000 connections

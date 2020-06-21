@@ -1,7 +1,7 @@
 {
-    "NumClients": 1000,
-    "ParallelLoadClients":50,
-    "GWHost": "3.250.195.61",
+    "NumClients": 10,
+    "ParallelLoadClients":2,
+    "GWHost": "54.171.15.94",
     "GWPort": 2222,
     "MaxCommands" : 10000,
     "Instances":[ 
