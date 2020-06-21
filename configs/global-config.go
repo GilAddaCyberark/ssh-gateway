@@ -16,6 +16,7 @@ type ServerConfig struct {
 	ExpirationPeriodSec int
 	EnableFileRecorder  bool
 	EnableCWLRecorder   bool
+	BannerFilePath      string
 }
 
 type AWSConfig struct {

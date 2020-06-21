@@ -5,6 +5,8 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -24,6 +26,7 @@ type ServerContext struct {
 	ServerSigner    ssh.Signer
 	ServerPublicKey []byte
 	TenantId        string
+	BannerText      string
 }
 
 type SSHGateway struct {
@@ -32,7 +35,6 @@ type SSHGateway struct {
 	ListeningPort int
 	Config        *cfg.ServerConfig
 	AWSConfig     *cfg.AWSConfig
-	// Set Global Gateway Logger
 }
 
 // Create the configuration of a new server and start it
@@ -40,6 +42,14 @@ func (s *SSHGateway) NewSSHGateway() error {
 	s.Config = cfg.Server_Config
 	context = &ServerContext{}
 	context.TenantId = cfg.AWS_Config.TenantId
+	// Reading Banner text from configuration file
+	bannerPath := cfg.Server_Config.BannerFilePath
+	banner, err := readFileAsString(bannerPath)
+	if err != nil {
+		context.BannerText = "No Banner Configured\r\n"
+	} else {
+		context.BannerText = strings.Replace(banner, "\n", "\r\n", -1)
+	}
 	sshServerConfig := &ssh.ServerConfig{
 		NoClientAuth:  false,
 		MaxAuthTries:  1,
@@ -179,4 +189,23 @@ func (s SSHGateway) GetServerPublicKey() ([]byte, error) {
 		return nil, err
 	}
 	return publicKey, nil
+}
+
+func readFileAsString(filename string) (string, error) {
+	// path, err := os.Getwd()
+	// _ = path
+	absFilePath, err := filepath.Abs(filename)
+	if err != nil {
+		return "", err
+	}
+	_, err = os.Stat(absFilePath)
+	if os.IsNotExist(err) {
+		return "", err
+	}
+
+	textBytes, err := ioutil.ReadFile(absFilePath)
+	if err != nil {
+		return "", fmt.Errorf("File not found or empty")
+	}
+	return string(textBytes), nil
 }

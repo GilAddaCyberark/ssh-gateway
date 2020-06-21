@@ -42,6 +42,9 @@ func (dsc *DataStreamController) Run(
 	dsc.sourcePC = NewPipedChannel(false, sourceChannel, &dsc.recorders) // note that write direction is inverse
 	dsc.destPC = NewPipedChannel(true, *destChannel, &dsc.recorders)
 
+	// Sending banner to the use on login
+	dsc.SendMessageToUser(context.BannerText)
+
 	// defer closer.Do(closeFunc)
 	defer func() {
 		// Gracefull shutdown
